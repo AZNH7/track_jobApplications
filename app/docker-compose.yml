@@ -1,0 +1,190 @@
+
+
+services:
+  # Main Application Service
+  job-tracker:
+    build:
+      context: ..
+      dockerfile: app/Dockerfile
+      args:
+        - BUILDKIT_INLINE_CACHE=0
+    container_name: job-tracker-app
+    # Use networks instead of host mode for better cross-platform compatibility
+    networks:
+      - job-tracker-network
+    env_file:
+      - ../.env
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=jobtracker
+      - POSTGRES_USER=jobtracker
+      - POSTGRES_PASSWORD=secure_password_2024
+      - FLARESOLVERR_URL=http://flaresolverr-balancer:8190/v1
+      - OLLAMA_HOST=http://host.docker.internal:11434
+      - CACHE_DURATION=300
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - DATA_EXPORT_PATH=/app/exports
+      - DATA_IMPORT_PATH=/app/imports
+      - PYTHONPATH=/app
+      - STREAMLIT_SERVER_FILEWATCHER_ENABLED=false
+      - STREAMLIT_SERVER_MAX_UPLOAD_SIZE=1024
+      - STREAMLIT_SERVER_WORKERS=8
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+      - STREAMLIT_LAYOUT_WIDE=true
+      - STREAMLIT_THEME_BASE=light
+    ports:
+      - "8501:8501"
+    volumes:
+      - ../shared:/app/shared
+      - ./src:/app/src
+      - ../exports:/app/exports
+      - ../imports:/app/imports
+      - ../logs:/app/logs
+    depends_on:
+      - postgres
+      - redis
+      - flaresolverr-balancer
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Database Service
+  postgres:
+    image: postgres:16
+    container_name: job-tracker-postgres
+    environment:
+      - POSTGRES_DB=jobtracker
+      - POSTGRES_USER=jobtracker
+      - POSTGRES_PASSWORD=secure_password_2024
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../shared/postgres-init:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - job-tracker-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jobtracker -d jobtracker"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache Service
+  redis:
+    image: redis:7-alpine
+    container_name: job-tracker-redis
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - job-tracker-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  flaresolverr-1:
+    image: 21hsmw/flaresolverr:nodriver
+    container_name: job-tracker-flaresolverr-1
+    ports:
+      - "8191:8191"
+    networks:
+      - job-tracker-network
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+    shm_size: '2gb'
+    cap_add:
+      - SYS_ADMIN
+
+  flaresolverr-2:
+    image: 21hsmw/flaresolverr:nodriver
+    container_name: job-tracker-flaresolverr-2
+    ports:
+      - "8192:8191"
+    networks:
+      - job-tracker-network
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+    shm_size: '2gb'
+    cap_add:
+      - SYS_ADMIN
+
+  flaresolverr-3:
+    image: 21hsmw/flaresolverr:nodriver
+    container_name: job-tracker-flaresolverr-3
+    ports:
+      - "8193:8191"
+    networks:
+      - job-tracker-network
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+    shm_size: '2gb'
+    cap_add:
+      - SYS_ADMIN
+
+  flaresolverr-4:
+    image: 21hsmw/flaresolverr:nodriver
+    container_name: job-tracker-flaresolverr-4
+    ports:
+      - "8194:8191"
+    networks:
+      - job-tracker-network
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+    shm_size: '2gb'
+    cap_add:
+      - SYS_ADMIN
+
+  flaresolverr-5:
+    image: 21hsmw/flaresolverr:nodriver
+    container_name: job-tracker-flaresolverr-5
+    ports:
+      - "8195:8191"
+    networks:
+      - job-tracker-network
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+    shm_size: '2gb'
+    cap_add:
+      - SYS_ADMIN
+
+  flaresolverr-balancer:
+    image: nginx:alpine
+    container_name: job-tracker-flaresolverr-balancer
+    volumes:
+      - ./nginx-flaresolverr.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "8190:8190"
+    networks:
+      - job-tracker-network
+    depends_on:
+      - flaresolverr-1
+      - flaresolverr-2
+      - flaresolverr-3
+      - flaresolverr-4
+      - flaresolverr-5
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  job-tracker-network:
+    driver: bridge
