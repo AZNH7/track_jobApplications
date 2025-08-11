@@ -50,37 +50,29 @@ job-tracker/
     └── debug/              # Debug and testing tools
 ```
 
-## 🚀 Quick Start
+To get started with the Job Tracker application, follow these steps:
 
-### 🖥️ For Windows Users
-```cmd
-# Download and run the setup script
-setup.bat
-```
+1.  **Clone the repository:**
+    ```bash
+    git clone https://your-repository-url.com/job-tracker.git
+    cd job-tracker
+    ```
 
-### 🐧 For Linux/macOS Users
+2.  **Run the start script:**
+    This will configure the environment and launch the application.
+    ```bash
+    ./start.sh
+    ```
+
+3.  **Access the application:**
+    Open your web browser and go to `http://localhost:8501`.
+
+### Manual Docker-Compose
+
+If you prefer to run the application manually, you can use `docker-compose`:
+
 ```bash
-# Make setup script executable and run
-chmod +x setup.sh
-./setup.sh
-```
-
-### 🐳 Manual Docker Setup (All Platforms)
-```bash
-# 1. Clone the repository
-git clone <your-repo-url>
-cd track_jobapplications
-
-# 2. Create environment file
-cp app/env.template .env
-# Edit .env with your LinkedIn credentials
-
-# 3. Start the application
-cd app
-docker-compose up -d --build
-
-# 4. Access the application
-# Open http://localhost:8501 in your browser
+docker-compose -f app/docker-compose.yml up --build
 ```
 
 ## 📋 Prerequisites
