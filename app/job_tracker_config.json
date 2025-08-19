@@ -1,0 +1,105 @@
+{
+  "job_search": {
+    "enable_indeed": true,
+    "indeed_country": "de",
+    "enable_linkedin": true,
+    "enable_alternative_sources": true,
+    "enable_stepstone": true,
+    "enable_xing": true,
+    "enable_stellenanzeigen": true,
+    "enable_meinestadt": true,
+    "enable_jobrapido": true,
+    "default_max_pages": 2,
+    "debug_mode": true,
+    "individual_platform_testing": false,
+    "test_timeout_seconds": 30,
+    "default_location": "",
+    "speed_optimizations": {
+      "enabled": true,
+      "max_parallel_workers": 25,
+      "reduced_timeouts": true,
+      "batch_processing": true,
+      "location_batch_size": 3,
+      "title_batch_size": 3,
+      "aggressive_caching": true,
+      "optimized_search": {
+        "enabled": true,
+        "parallel_platforms": true,
+        "separate_deep_scraping": true,
+        "batch_size": 500,
+        "max_workers": 8,
+        "timeout_seconds": 30,
+        "skip_llm_during_search": true
+      },
+      "database_optimizations": {
+        "connection_pool_size": 20,
+        "batch_insert_size": 500,
+        "async_operations": true,
+        "connection_timeout": 30
+      }
+    },
+    "preferred_language": "en"
+  },
+
+  "scraping": {
+    "use_flaresolverr": true,
+    "flaresolverr_url": "${FLARESOLVERR_URL}",
+    "default_headless": true,
+    "default_timeout": 60,
+    "rate_limit_delay": 5.0,
+    "max_retries": 3,
+    "platform_settings": {
+      "indeed": {
+        "use_flaresolverr": true
+      },
+      "linkedin": {
+        "use_flaresolverr": false
+      },
+      "stepstone": {
+        "use_flaresolverr": false
+      },
+      "xing": {
+        "use_flaresolverr": false
+      },
+      "stellenanzeigen": {
+        "use_flaresolverr": false
+      },
+      "meinestadt": {
+        "use_flaresolverr": true
+      },
+      "jobrapido": {
+        "use_flaresolverr": true
+      }
+    }
+  },
+  "filters": {
+    "language_filter_enabled": false,
+    "location_filter_enabled": true,
+    "preferred_languages": [
+      "en",
+      "de"
+    ]
+  },
+  "llm": {
+    "enable_ollama": true,
+    "ollama_host": "${OLLAMA_HOST}",
+    "ollama_model": "${OLLAMA_MODEL}",
+    "ollama_timeout": 300,
+    "ollama_max_retries": 3,
+    "enable_job_analysis": true,
+    
+    "enable_application_insights": true
+  },
+  "database": {
+    "host": "${POSTGRES_HOST}",
+    "port": 5432,
+    "database": "${POSTGRES_DB}",
+    "user": "${POSTGRES_USER}",
+    "password": "${POSTGRES_PASSWORD}",
+    "connection_timeout": 30
+  },
+  "flaresolverr": {
+    "url": "${FLARESOLVERR_URL}",
+    "timeout": 60
+  }
+}
