@@ -7,6 +7,7 @@ Handles persistent settings and preferences.
 import json
 import os
 from typing import Dict, Any, Optional
+import shutil
 
 
 class ConfigManager:
@@ -35,7 +36,9 @@ class ConfigManager:
         try:
             if os.path.exists(self.config_file):
                 with open(self.config_file, 'r') as f:
-                    self._config_data = json.load(f)
+                    content = f.read()
+                    self._config_data = json.loads(content)
+                    self._replace_env_placeholders(self._config_data)
                     return self._config_data
         except Exception as e:
             print(f"⚠️ Error loading config: {e}")
@@ -49,53 +52,13 @@ class ConfigManager:
                 "enable_alternative_sources": True,
                 "default_max_pages": 3
             },
-            "job_titles": [
-                "System Administrator",
-                "IT System Administrator",
-                "Systems Engineer",
-                "IT Engineer",
-                "Technical Support Engineer",
-                "IT Support Specialist",
-                "IT Operations Engineer",
-                "System Integration Engineer",
-                "IT Integration",
-                "Technical Operations Engineer",
-                "IT Infrastructure Engineer",
-                "Senior IT system",
-                "Senior IT engineer",
-                "Senior IT Admin",
-                "Senior system admin",
-                "Senior system administrator",
-                "IT system",
-                "IT engineer",
-                "IT Admin"
-            ],
-            "default_job_titles": [
-                "System Administrator",
-                "IT System Administrator",
-                "Systems Engineer",
-                "IT Engineer",
-                "Technical Support Engineer",
-                "IT Support Specialist",
-                "IT Operations Engineer",
-                "System Integration Engineer",
-                "IT Integration",
-                "Technical Operations Engineer",
-                "IT Infrastructure Engineer",
-                "Senior IT system",
-                "Senior IT engineer",
-                "Senior IT Admin",
-                "Senior system admin",
-                "Senior system administrator",
-                "IT system",
-                "IT engineer",
-                "IT Admin"
-            ],
+    
+    
             "scraping": {
                 "use_flaresolverr": True,
-                "flaresolverr_url": "http://flaresolverr-balancer:8190/v1",
+                "flaresolverr_url": "http://localhost:8191/v1",
                 "default_headless": True,
-                "default_timeout": 300
+                "default_timeout": 60
             },
             "filters": {
                 "language_filter_enabled": True,
@@ -109,15 +72,15 @@ class ConfigManager:
                 "ollama_timeout": 300,
                 "ollama_max_retries": 3,
                 "enable_job_analysis": True,
-                "enable_cv_scoring": True,
+        
                 "enable_application_insights": True
             },
             "database": {
                 "host": "localhost",
                 "port": 5432,
                 "database": "jobtracker",
-                "user": "jobtracker",
-                "password": "jobtracker",
+                "user": "user",
+                "password": "password",
                 "connection_timeout": 30
             },
             "flaresolverr": {
@@ -125,7 +88,17 @@ class ConfigManager:
                 "timeout": 60
             }
         }
+        self._replace_env_placeholders(self._config_data)
         return self._config_data
+
+    def _replace_env_placeholders(self, config: Dict[str, Any]) -> None:
+        """Recursively replace environment variable placeholders."""
+        for key, value in config.items():
+            if isinstance(value, dict):
+                self._replace_env_placeholders(value)
+            elif isinstance(value, str) and value.startswith('${') and value.endswith('}'):
+                env_var = value[2:-1]
+                config[key] = os.getenv(env_var, '')
     
     def get_value(self, key: str, default: Any = None) -> Any:
         """Get a configuration setting using dot notation."""
@@ -141,18 +114,29 @@ class ConfigManager:
     def set_value(self, key: str, value: Any) -> None:
         """Set a configuration setting using dot notation."""
         keys = key.split('.')
-        config = self._config_data
+        d = self._config_data
         for k in keys[:-1]:
-            config = config.setdefault(k, {})
-        config[keys[-1]] = value
-    
-    def save_config(self) -> None:
-        """Save configuration to file."""
+            d = d.setdefault(k, {})
+        d[keys[-1]] = value
+
+    def save_config(self) -> bool:
+        """Saves the current configuration data to the config file."""
         try:
+            # Create a backup.
+            if os.path.exists(self.config_file):
+                shutil.copy(self.config_file, self.config_file + '.bak')
+            
             with open(self.config_file, 'w') as f:
                 json.dump(self._config_data, f, indent=2)
+            
+            print(f"✅ Configuration saved to {self.config_file}")
+            return True
         except Exception as e:
-            print(f"⚠️ Error saving config: {e}")
+            print(f"❌ Error saving configuration: {e}")
+            # Restore from backup if something went wrong.
+            if os.path.exists(self.config_file + '.bak'):
+                shutil.move(self.config_file + '.bak', self.config_file)
+            return False
     
     def get_setting(self, section: str, default: Any = None) -> Any:
         """Get a configuration section."""

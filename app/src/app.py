@@ -62,22 +62,25 @@ def main():
         st.sidebar.title("Navigation")
         
         # Combined navigation using a single selectbox
-        page = st.sidebar.selectbox(
-            "Navigation",
+        page = st.sidebar.radio(
+            "Go to",
             [
-                "📊 Dashboard",
+                "🏠 Main Dashboard",
                 "🔍 Job Search",
-                "🌐 Job Browser",
-                "📝 Applications",
-                "💼 Job Offers",
-                "📄 CV Insights",
-                "⚙️ Platform Config",
-                "🗄️ Data Management"
+                "📊 Job Browser",
+                "📝 Job Offers",
+                "📄 Applications",
+        
+                "📈 Performance",
+                "🛠️ Data Management",
+                "🔧 Platform Config",
+                "⚙️ Settings"
             ]
         )
         
-        # Show quick insights in sidebar
-        insights_widget.show_sidebar_widget(df, applications_df)
+        # Show quick insights in sidebar only on main dashboard
+        if page == "🏠 Main Dashboard":
+            insights_widget.show_sidebar_widget(df, applications_df)
         
         # Cache status indicator
         if 'cache_status' in st.session_state:
@@ -87,7 +90,7 @@ def main():
         PersistentSearchResults.show_sidebar_summary()
         
         # Route to appropriate page
-        if page == "📊 Dashboard":
+        if page == "🏠 Main Dashboard":
             from views.main_dashboard import MainDashboardView
             dashboard = MainDashboardView()
             dashboard.show()
@@ -97,35 +100,41 @@ def main():
             search_view = EnhancedJobSearchView()
             search_view.show()
             
-        elif page == "🌐 Job Browser":
+        elif page == "📊 Job Browser":
             from views.job_browser import JobBrowserView
             browser = JobBrowserView()
             browser.show()
             
-        elif page == "📝 Applications":
-            from views.applications import ApplicationsView
-            apps_view = ApplicationsView()
-            apps_view.show()
-            
-        elif page == "💼 Job Offers":
+        elif page == "📝 Job Offers":
             from views.job_offers import JobOffersView
             offers_view = JobOffersView()
             offers_view.show()
             
-        elif page == "📄 CV Insights":
-            from views.cv_insights import CVInsightsView
-            cv_view = CVInsightsView()
-            cv_view.show()
+        elif page == "📄 Applications":
+            from views.applications import ApplicationsView
+            applications_view = ApplicationsView()
+            applications_view.show()
             
-        elif page == "⚙️ Platform Config":
+        
+            
+        elif page == "📈 Performance":
+            # This section is not yet implemented, so we'll just show a placeholder
+            st.info("Performance insights page is under construction.")
+            
+        elif page == "🛠️ Data Management":
+            from views.data_management import DataManagementView
+            data_view = DataManagementView()
+            data_view.show()
+            
+        elif page == "🔧 Platform Config":
             from views.platform_config import PlatformConfigView
             config_view = PlatformConfigView()
             config_view.show()
             
-        elif page == "🗄️ Data Management":
-            from views.data_management import DataManagementView
-            data_view = DataManagementView()
-            data_view.show()
+        elif page == "⚙️ Settings":
+            from views.settings_view import SettingsView
+            settings_view = SettingsView()
+            settings_view.show()
             
     except Exception as e:
         logger.error(f"Error in main application: {e}")

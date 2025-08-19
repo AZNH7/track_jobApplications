@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 AI Career Agent - Intelligent Career Advisory Assistant
-Provides insights on job search, email analysis, and CV optimization
+Provides insights on job search and email analysis
 """
 
 import streamlit as st
@@ -35,10 +35,7 @@ class AICareerAgent:
         # Test connection
         self.available = self.test_connection()
         
-        # Load CV content
-        self.cv_content = None
-        self.cv_analysis = None
-        self.load_cv_content()
+
     
     def test_connection(self) -> bool:
         """Test connection to Ollama server"""
@@ -48,45 +45,9 @@ class AICareerAgent:
         except:
             return False
     
-    def load_cv_content(self):
-        """Load and analyze CV content"""
-        cv_paths = [
-            "/app/shared/cv/resume.pdf",
-            "/app/cv/resume.pdf", 
-            "shared/cv/resume.pdf",
-            "cv/resume.pdf"
-        ]
-        
-        for cv_path in cv_paths:
-            if os.path.exists(cv_path):
-                try:
-                    self.cv_content = self.extract_pdf_content(cv_path)
-                    if self.cv_content:
-                        self.cv_analysis = self.analyze_cv_comprehensive()
-                        return
-                except:
-                    continue
+
     
-    def extract_pdf_content(self, pdf_path: str) -> str:
-        """Extract text content from PDF"""
-        try:
-            with pdfplumber.open(pdf_path) as pdf:
-                text = ""
-                for page in pdf.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        text += page_text + "\n"
-                return text.strip()
-        except:
-            try:
-                with open(pdf_path, 'rb') as file:
-                    pdf_reader = PyPDF2.PdfReader(file)
-                    text = ""
-                    for page in pdf_reader.pages:
-                        text += page.extract_text() + "\n"
-                    return text.strip()
-            except:
-                return ""
+
     
     def _call_ollama(self, prompt: str, system_prompt: str = "", max_tokens: int = 2000) -> Optional[str]:
         """Make a call to Ollama API"""
@@ -123,93 +84,7 @@ class AICareerAgent:
             st.error(f"Error calling AI agent: {e}")
             return None
     
-    def analyze_cv_comprehensive(self) -> Dict[str, Any]:
-        """Comprehensive CV analysis"""
-        if not self.cv_content or not self.available:
-            return {}
-        
-        system_prompt = """You are an expert career coach and HR specialist. Analyze CVs comprehensively and provide actionable insights. Always respond in valid JSON format."""
-        
-        prompt = f"""
-        Analyze this CV comprehensively and provide detailed insights in JSON format:
-        {{
-            "overall_assessment": {{
-                "strength_score": 0-10,
-                "clarity_score": 0-10,
-                "completeness_score": 0-10,
-                "market_readiness": 0-10,
-                "summary": "brief overall assessment"
-            }},
-            "strengths": [
-                "strength 1",
-                "strength 2",
-                "strength 3"
-            ],
-            "weaknesses": [
-                "weakness 1",
-                "weakness 2",
-                "weakness 3"
-            ],
-            "skills_analysis": {{
-                "technical_skills": ["skill1", "skill2"],
-                "soft_skills": ["skill1", "skill2"],
-                "missing_skills": ["skill1", "skill2"],
-                "skill_level": "Junior/Mid/Senior/Expert",
-                "recommendations": ["improve X", "add Y"]
-            }},
-            "experience_analysis": {{
-                "years_experience": 0-50,
-                "career_progression": "Excellent/Good/Average/Poor",
-                "industry_focus": "primary industry",
-                "role_consistency": "Consistent/Mixed/Scattered",
-                "leadership_experience": true/false,
-                "achievements_quality": 0-10
-            }},
-            "structure_feedback": {{
-                "format_score": 0-10,
-                "readability": 0-10,
-                "length_appropriate": true/false,
-                "sections_present": ["contact", "summary", "experience"],
-                "missing_sections": ["section1", "section2"],
-                "improvements": ["improvement1", "improvement2"]
-            }},
-            "market_positioning": {{
-                "target_roles": ["role1", "role2"],
-                "salary_range": "€X,000 - €Y,000",
-                "competitive_advantage": "main advantage",
-                "market_demand": "High/Medium/Low",
-                "differentiation": "what makes candidate unique"
-            }},
-            "recommendations": {{
-                "immediate_actions": ["action1", "action2"],
-                "skill_development": ["skill1", "skill2"],
-                "experience_gaps": ["gap1", "gap2"],
-                "networking_focus": ["area1", "area2"],
-                "application_strategy": "strategic advice"
-            }}
-        }}
-        
-        CV Content:
-        {self.cv_content[:3000]}
-        """
-        
-        response = self._call_ollama(prompt, system_prompt, max_tokens=2500)
-        
-        if response:
-            try:
-                analysis = json.loads(response)
-                return analysis
-            except json.JSONDecodeError:
-                try:
-                    start = response.find('{')
-                    end = response.rfind('}') + 1
-                    if start != -1 and end != 0:
-                        json_str = response[start:end]
-                        return json.loads(json_str)
-                except:
-                    pass
-        
-        return {}
+
     
     def analyze_job_market_trends(self, job_data: List[Dict]) -> str:
         """Analyze job market trends from search results"""
@@ -297,16 +172,7 @@ class AICareerAgent:
         if not self.available:
             return "AI agent not available."
         
-        cv_context = ""
-        if self.cv_analysis:
-            cv_context = f"""
-            
-            Candidate Profile:
-            - Skill Level: {self.cv_analysis.get('skills_analysis', {}).get('skill_level', 'Unknown')}
-            - Experience: {self.cv_analysis.get('experience_analysis', {}).get('years_experience', 0)} years
-            - Industry: {self.cv_analysis.get('experience_analysis', {}).get('industry_focus', 'Unknown')}
-            - Strengths: {', '.join(self.cv_analysis.get('strengths', [])[:3])}
-            """
+
         
         context_info = ""
         if context:
@@ -316,7 +182,6 @@ class AICareerAgent:
         
         prompt = f"""
         Question: {query}
-        {cv_context}
         {context_info}
         
         Provide personalized, actionable career advice based on the candidate's profile and current market conditions.
@@ -330,12 +195,7 @@ class AICareerAgent:
         if not self.available:
             return "AI agent not available."
         
-        cv_context = ""
-        if self.cv_analysis:
-            cv_context = f"""
-            Candidate Profile:
-            {json.dumps(self.cv_analysis, indent=2)}
-            """
+
         
         system_prompt = """You are an expert career strategist specializing in job search optimization."""
         
@@ -343,7 +203,6 @@ class AICareerAgent:
         Generate a comprehensive job search strategy based on:
         
         Preferences: {json.dumps(preferences, indent=2)}
-        {cv_context}
         
         Create a detailed strategy covering:
         1. Target role positioning

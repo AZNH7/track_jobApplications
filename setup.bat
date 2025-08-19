@@ -49,7 +49,7 @@ if not exist "exports" mkdir exports
 if not exist "imports" mkdir imports
 if not exist "logs" mkdir logs
 if not exist "shared" mkdir shared
-if not exist "shared\cv" mkdir shared\cv
+
 if not exist "shared\data" mkdir shared\data
 if not exist "shared\logs" mkdir shared\logs
 if not exist "shared\postgres-init" mkdir shared\postgres-init
@@ -94,30 +94,7 @@ if not exist ".env" (
     echo [SUCCESS] .env file already exists
 )
 
-REM Check if CV file exists
-if not exist "shared\cv\resume.pdf" (
-    echo [WARNING] No CV file found. Please add your resume as 'shared\cv\resume.pdf' for CV matching features.
-    REM Create a placeholder README
-    (
-        echo # CV Files
-        echo.
-        echo Place your resume/CV files in this directory for job matching functionality.
-        echo.
-        echo ## Supported formats:
-        echo - PDF files ^(recommended^)
-        echo - DOCX files  
-        echo - TXT files
-        echo.
-        echo ## Naming:
-        echo - Main CV: `resume.pdf` or `cv.pdf`
-        echo - Alternative versions: `resume_tech.pdf`, `resume_management.pdf`, etc.
-        echo.
-        echo ## Privacy:
-        echo - CV files are processed locally only
-        echo - No data is sent to external services ^(except Ollama if using AI features^)
-        echo - Files are excluded from git commits by default
-    ) > shared\cv\README.md
-)
+
 
 REM Set up Ollama (optional)
 echo [INFO] Setting up AI features ^(Ollama^)...
@@ -163,7 +140,7 @@ if errorlevel 1 (
     echo.
     echo 📚 Next steps:
     echo   1. Edit .env file with your LinkedIn credentials
-    echo   2. Add your CV to shared\cv\resume.pdf
+
     echo   3. Visit http://localhost:8501 to start using the application
     echo.
     echo 🔧 Useful commands:

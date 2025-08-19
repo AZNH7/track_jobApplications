@@ -18,6 +18,7 @@ from src.database_manager import get_db_manager
 from src.config_manager import get_config_manager
 from src.scrapers import JobScraperOrchestrator
 from src.components.persistent_search_results import PersistentSearchResults
+from src.services.saved_search_service import SavedSearchService
 
 class EnhancedJobSearchView(BaseView):
     """
@@ -31,6 +32,7 @@ class EnhancedJobSearchView(BaseView):
         # Initialize services and managers
         self.job_grouping_service = JobGroupingService()
         self.job_email_matcher_service = JobEmailMatcherService()
+        self.saved_search_service = SavedSearchService()
         self.ui = UIComponents()
         self.db_manager = get_db_manager()
         self.config_manager = get_config_manager()
@@ -69,33 +71,30 @@ class EnhancedJobSearchView(BaseView):
         with st.form("job_search_form"):
             # Job titles input
             st.markdown("#### 📋 Job Titles")
-            st.markdown("Enter job titles (one per line) or choose from predefined titles")
+            st.markdown("Enter job titles (one per line)")
             
-            col1, col2 = st.columns([2, 1])
+            # Get loaded search parameters if available
+            loaded_titles = ""
+            if 'loaded_search' in st.session_state:
+                loaded_titles = st.session_state.loaded_search.get('job_titles', '')
             
-            with col1:
-                job_titles_text = st.text_area(
-                    "Job Titles",
-                    placeholder="Enter job titles (one per line)",
-                    help="Enter each job title on a new line"
-                )
-            
-            with col2:
-                predefined_titles = self.config_manager.get_value('job_titles', [])
-                default_titles = self.config_manager.get_value('default_job_titles', [])
-                valid_defaults = [title for title in default_titles if title in predefined_titles]
-                
-                selected_titles = st.multiselect(
-                    "Predefined Titles",
-                    options=predefined_titles,
-                    default=valid_defaults,
-                    help="Select from predefined job titles"
-                )
+            job_titles_text = st.text_area(
+                "Job Titles",
+                value=loaded_titles,
+                placeholder="Enter job titles (one per line)",
+                help="Enter each job title on a new line"
+            )
             
             # Location input
             st.markdown("#### 📍 Location")
             default_location = self.config_manager.get_value('job_search.default_location', 'Essen')
-            location = st.text_input("Location", value=default_location, placeholder="e.g., Essen, Duisburg")
+            
+            # Get loaded location if available
+            loaded_location = default_location
+            if 'loaded_search' in st.session_state:
+                loaded_location = st.session_state.loaded_search.get('location', default_location)
+            
+            location = st.text_input("Location", value=loaded_location, placeholder="e.g., Essen, Duisburg")
             
             # Platform selection
             st.markdown("#### 🌐 Job Platforms")
@@ -111,37 +110,71 @@ class EnhancedJobSearchView(BaseView):
                     
             except Exception as e:
                 # Fallback to hardcoded list if orchestrator is not available
-                available_platforms = ["Indeed", "LinkedIn", "StepStone", "Xing", "Monster", "Stellenanzeigen", "Jobrapido"]
+                available_platforms = ["Indeed", "LinkedIn", "StepStone", "Xing", "Stellenanzeigen", "Jobrapido"]
                 working_platforms = available_platforms
                 st.warning(f"⚠️ Using fallback platform list. Error: {e}")
+            # Get loaded platforms if available
+            loaded_platforms = working_platforms
+            if 'loaded_search' in st.session_state:
+                loaded_platforms = st.session_state.loaded_search.get('platforms', working_platforms)
+            
             selected_platforms = st.multiselect(
                 "Select Platforms", 
                 options=working_platforms, 
-                default=working_platforms,
+                default=loaded_platforms,
                 help="Choose which job platforms to search. These platforms have been tested and are working properly."
             )
             
             # Search options
             st.markdown("#### ⚙️ Search Options")
             col1, col2, col3, col4 = st.columns(4)
-            max_pages = col1.number_input("Max Pages", 1, 10, 3)
-            english_only = col2.checkbox("English Only", False)
-            enable_grouping = col3.checkbox("Smart Grouping", True, help="Group similar jobs by company and position")
-            deep_scrape = col4.checkbox("Deep Scrape", True, help="Fetch full job descriptions and details (recommended)")
+            
+            # Get loaded search options if available
+            loaded_max_pages = 3
+            loaded_english_only = False
+            loaded_enable_grouping = True
+            loaded_deep_scrape = True
+            
+            if 'loaded_search' in st.session_state:
+                loaded_max_pages = st.session_state.loaded_search.get('max_pages', 3)
+                loaded_english_only = st.session_state.loaded_search.get('english_only', False)
+                loaded_enable_grouping = st.session_state.loaded_search.get('enable_grouping', True)
+                loaded_deep_scrape = st.session_state.loaded_search.get('deep_scrape', True)
+            
+            max_pages = col1.number_input("Max Pages", 1, 10, loaded_max_pages)
+            english_only = col2.checkbox("English Only", loaded_english_only)
+            enable_grouping = col3.checkbox("Smart Grouping", loaded_enable_grouping, help="Group similar jobs by company and position")
+            deep_scrape = col4.checkbox("Deep Scrape", loaded_deep_scrape, help="Fetch full job descriptions and details (recommended)")
+
+            # Saved search functionality
+            st.markdown("#### 💾 Save Search Parameters")
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                save_search_name = st.text_input(
+                    "Save as (optional)",
+                    placeholder="e.g., Python Developer Essen",
+                    help="Save current search parameters for future use"
+                )
+            
+            with col2:
+                save_search = st.checkbox("Save this search", False)
 
             submitted = st.form_submit_button("🚀 Start Search", type="primary", use_container_width=True)
+
+        # Clear loaded search after form is rendered
+        if 'loaded_search' in st.session_state:
+            del st.session_state.loaded_search
 
         if submitted:
             all_titles = []
             if job_titles_text:
                 all_titles.extend([t.strip() for t in job_titles_text.split('\n') if t.strip()])
-            if selected_titles:
-                all_titles.extend(selected_titles)
             
             all_titles = list(dict.fromkeys(all_titles))
 
             if not all_titles:
-                st.error("❌ Please enter or select at least one job title")
+                st.error("❌ Please enter at least one job title")
                 return
             
             if not selected_platforms:
@@ -149,6 +182,23 @@ class EnhancedJobSearchView(BaseView):
                 return
 
             if location:
+                # Save search parameters if requested
+                if save_search and save_search_name:
+                    success = self.saved_search_service.save_search(
+                        name=save_search_name,
+                        job_titles=all_titles,
+                        location=location,
+                        platforms=selected_platforms,
+                        max_pages=max_pages,
+                        english_only=english_only,
+                        enable_grouping=enable_grouping,
+                        deep_scrape=deep_scrape
+                    )
+                    if success:
+                        st.success(f"✅ Search parameters saved as '{save_search_name}'")
+                    else:
+                        st.error(f"❌ Failed to save search. Name '{save_search_name}' might already exist.")
+                
                 self._execute_search(
                     job_titles=all_titles,
                     location=location,
@@ -161,6 +211,12 @@ class EnhancedJobSearchView(BaseView):
                 st.error("❌ Please provide a location")
         
         # --- End of Form and search logic ---
+
+        # Display saved searches
+        self._show_saved_searches()
+        
+        # Export/Import functionality
+        self._show_export_import_section()
 
         if ('search_results' in st.session_state and 
             st.session_state.search_results is not None and 
@@ -646,8 +702,7 @@ class EnhancedJobSearchView(BaseView):
                             
                             # Prepare notes with search metadata
                             notes = "Auto-saved from job search"
-                            if job.get('cv_match_score'):
-                                notes += f" | CV Match: {job['cv_match_score']}%"
+                            
                             if job.get('language'):
                                 notes += f" | Language: {job['language']}"
                             if job.get('llm_quality_score'):
@@ -677,4 +732,107 @@ class EnhancedJobSearchView(BaseView):
             return job_saved
         except Exception as e:
             self.logger.error(f"Error saving single job: {str(e)}")
-            return False 
+            return False
+    
+    def _show_saved_searches(self):
+        """Display saved searches with load and delete options"""
+        saved_searches = self.saved_search_service.get_all_saved_searches()
+        
+        if not saved_searches:
+            return
+        
+        st.markdown("---")
+        st.markdown("#### 💾 Saved Search Parameters")
+        
+        # Create columns for each saved search
+        for i, search in enumerate(saved_searches):
+            with st.container():
+                col1, col2, col3 = st.columns([3, 1, 1])
+                
+                with col1:
+                    # Display search info
+                    st.markdown(f"**{search.name}**")
+                    st.markdown(f"📍 {search.location} | 📄 {len(search.job_titles)} titles | 🌐 {len(search.platforms)} platforms")
+                    st.markdown(f"📊 Max pages: {search.max_pages} | {'🇬🇧' if search.english_only else '🌍'} | {'📋' if search.enable_grouping else '📄'} | {'🔍' if search.deep_scrape else '⚡'}")
+                    
+                    if search.last_used:
+                        from datetime import datetime
+                        last_used = datetime.fromisoformat(search.last_used)
+                        st.markdown(f"🕒 Last used: {last_used.strftime('%Y-%m-%d %H:%M')} (used {search.use_count} times)")
+                
+                with col2:
+                    # Load button
+                    if st.button(f"Load", key=f"load_{i}"):
+                        self._load_saved_search(search)
+                        st.rerun()
+                
+                with col3:
+                    # Delete button
+                    if st.button(f"🗑️", key=f"delete_{i}"):
+                        if self.saved_search_service.delete_saved_search(search.name):
+                            st.success(f"✅ Deleted '{search.name}'")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ Failed to delete '{search.name}'")
+    
+    def _load_saved_search(self, search):
+        """Load saved search parameters into session state for form population"""
+        # Store the search parameters in session state for form population
+        st.session_state.loaded_search = {
+            'job_titles': '\n'.join(search.job_titles),
+            'location': search.location,
+            'platforms': search.platforms,
+            'max_pages': search.max_pages,
+            'english_only': search.english_only,
+            'enable_grouping': search.enable_grouping,
+            'deep_scrape': search.deep_scrape
+        }
+        
+        # Update usage statistics
+        self.saved_search_service.update_usage(search.name)
+        
+        st.success(f"✅ Loaded search parameters from '{search.name}'")
+    
+    def _show_export_import_section(self):
+        """Show export/import functionality for saved searches"""
+        saved_searches = self.saved_search_service.get_all_saved_searches()
+        
+        if not saved_searches:
+            return
+        
+        st.markdown("---")
+        st.markdown("#### 📤 Export/Import Saved Searches")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**Export Saved Searches**")
+            export_data = self.saved_search_service.export_searches()
+            st.code(export_data, language="json")
+            
+            # Download button
+            st.download_button(
+                label="📥 Download Saved Searches",
+                data=export_data,
+                file_name=f"saved_searches_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json"
+            )
+        
+        with col2:
+            st.markdown("**Import Saved Searches**")
+            uploaded_file = st.file_uploader(
+                "Choose a JSON file",
+                type=['json'],
+                help="Upload a previously exported saved searches file"
+            )
+            
+            if uploaded_file is not None:
+                try:
+                    content = uploaded_file.read().decode('utf-8')
+                    if self.saved_search_service.import_searches(content):
+                        st.success("✅ Successfully imported saved searches!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to import saved searches. Please check the file format.")
+                except Exception as e:
+                    st.error(f"❌ Error importing file: {str(e)}") 

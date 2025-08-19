@@ -82,29 +82,13 @@ RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 COPY app/ .
 
 # Ensure shared directory exists
-RUN mkdir -p /app/shared/cv
+RUN mkdir -p /app/shared
 
-# Copy CV files if they exist (optional)
-COPY shared/cv/ /app/shared/cv/ 2>/dev/null || echo "No CV files found - will use mounted volume"
-
-# Copy verification script if it exists
-RUN if [ -f "scripts/verify_cv.py" ]; then \
-        cp scripts/verify_cv.py /app/verify_cv.py && \
-        python3 /app/verify_cv.py || echo "CV verification completed"; \
-    else \
-        echo "CV verification script not found - skipping"; \
-    fi
-
-# Copy all scripts for database maintenance if they exist
-RUN if [ -d "scripts" ]; then \
-        cp -r scripts/ /app/scripts/; \
-    else \
-        echo "Scripts directory not found - creating empty directory" && \
-        mkdir -p /app/scripts; \
-    fi
+# Ensure scripts directory exists
+RUN mkdir -p /app/scripts
 
 # Set environment variables
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app/src
 ENV STREAMLIT_SERVER_PORT=8501
 ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
 

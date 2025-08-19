@@ -27,7 +27,7 @@ class RateLimitManager:
             'linkedin.com': 5.0,       # Keep higher for LinkedIn's strict protection
             'stepstone.de': 1.5,       # Reduced with FlareSolverr
             'xing.com': 1.5,           # Reduced with FlareSolverr
-            'monster.de': 2.0,         # Reduced since FlareSolverr handles DataDome
+        
             'stellenanzeigen.de': 1.5,
             'meinestadt.de': 1.5,
             'default': 1.5             # Default reduced with FlareSolverr
@@ -61,14 +61,7 @@ class RateLimitManager:
                 'cloudflare_protected': False,
                 'stealth_mode': False
             },
-            'monster.de': {
-                'base_delay': 2.0,          # Optimized for FlareSolverr with DataDome
-                'max_retries': 2,
-                'backoff_multiplier': 1.3,
-                'max_backoff': 20.0,
-                'cloudflare_protected': True,
-                'stealth_mode': False
-            },
+
             'indeed.com': {
                 'base_delay': 1.5,          # Reduced with FlareSolverr
                 'max_retries': 2,
@@ -127,8 +120,7 @@ class RateLimitManager:
             return 'stepstone.de'
         elif 'xing.com' in url:
             return 'xing.com'
-        elif 'monster.de' in url:
-            return 'monster.de'
+
         elif 'stellenanzeigen.de' in url:
             return 'stellenanzeigen.de'
         elif 'meinestadt.de' in url:

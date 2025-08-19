@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 FlareSolverr Management Script
-Monitors, maintains, and restarts FlareSolverr to prevent resource exhaustion and failures.
+Monitors, maintains, and restarts FlareSolverr to prevent resource failures.
 """
 
 import requests

@@ -162,7 +162,7 @@ class MeinestadtScraper(BaseScraper):
 
     def _extract_meinestadt_jobs(self, soup: BeautifulSoup, page_url: str) -> List[Dict]:
         """
-        Extract job listings from MeineStadt.de search results with advanced validation.
+        Extract job listings from MeineStadt.de search results with improved selectors.
         
         Args:
             soup (BeautifulSoup): Parsed HTML content
@@ -174,78 +174,65 @@ class MeinestadtScraper(BaseScraper):
         jobs = []
         
         try:
-            # Advanced job detection strategies
-            job_detection_strategies = [
-                {
-                    'selectors': [
-                        # Specific job-related HTML elements and classes
-                        {'tag': 'div', 'class_filter': lambda x: x and any(term in x.lower() for term in [
-                            'job-item', 'job-result', 'job-card', 'job-listing', 
-                            'stellenanzeige', 'job-entry', 'job-preview'
-                        ])},
-                        {'tag': 'article', 'class_filter': lambda x: x and any(term in x.lower() for term in [
-                            'job', 'stelle', 'position', 'anzeige'
-                        ])},
-                        {'tag': 'li', 'class_filter': lambda x: x and any(term in x.lower() for term in [
-                            'job', 'stelle', 'position'
-                        ])}
-                    ],
-                    'validators': [
-                        # Strong job-related keyword validation
-                        lambda text: sum(
-                            text.lower().count(keyword) for keyword in [
-                                'entwickler', 'developer', 'engineer', 'programmierer', 
-                                'it', 'software', 'job', 'stelle', 'position', 
-                                'mitarbeiter', 'vollzeit', 'teilzeit', 'remote',
-                                'softwareentwickler', 'ingenieur', 'projektleiter',
-                                'recruiter', 'consultant', 'analyst', 'administrator'
-                            ]
-                        ) >= 2,
-                        
-                        # Exclude navigation and non-job content
-                        lambda text: not any(nav_term in text.lower() for nav_term in [
-                            'seite', 'weiter', 'zurück', 'navigation', 'filter', 
-                            'sortieren', 'vorschläge', 'jobs suchen', 
-                            'alle anzeigen', 'mehr anzeigen', 'finde deinen job',
-                            'mitarbeiterrabatte', 'mitarbeiterangebote', 
-                            'sorgfältige einarbeitung', 'mitarbeiter-events',
-                            'vereinbarkeit', 'mobiles arbeiten', 'job-rad'
-                        ]),
-                        
-                        # Meaningful content length and structure
-                        lambda text: (
-                            100 < len(text) < 1000 and  # Reasonable text length
-                            any(marker in text.lower() for marker in ['(m/w/d)', '(w/m/d)'])  # Job posting markers
-                        )
-                    ]
-                }
+            # Multiple selector strategies for better coverage
+            selectors = [
+                # Strategy 1: Common job listing containers
+                'div[class*="job"]',
+                'div[class*="stelle"]',
+                'div[class*="position"]',
+                'article[class*="job"]',
+                'article[class*="stelle"]',
+                'li[class*="job"]',
+                'li[class*="stelle"]',
+                
+                # Strategy 2: Generic containers that might contain jobs
+                'div.result-item',
+                'div.search-result',
+                'div.listing-item',
+                'div.card',
+                'div.item',
+                
+                # Strategy 3: More specific MeineStadt selectors
+                'div.job-listing',
+                'div.job-card',
+                'div.job-item',
+                'div.stellenanzeige',
+                'div.job-result',
+                
+                # Strategy 4: Fallback to any div with job-related content
+                'div'
             ]
             
-            # Comprehensive job card detection
             job_cards = []
-            for strategy in job_detection_strategies:
-                for selector in strategy['selectors']:
-                    potential_cards = soup.find_all(
-                        selector['tag'], 
-                        class_=selector.get('class_filter')
-                    )
-                    
-                    # Apply validation
-                    valid_cards = [
-                        card for card in potential_cards 
-                        if all(
-                            validator(card.get_text(strip=True)) 
-                            for validator in strategy['validators']
-                        )
-                    ]
-                    
-                    if valid_cards:
-                        job_cards = valid_cards
-                        if self.debug:
-                            print(f"   🎯 Found {len(valid_cards)} job cards using strategy")
-                        break
-                if job_cards:
-                    break
+            for selector in selectors:
+                cards = soup.select(selector)
+                if cards:
+                    job_cards.extend(cards)
+                    if self.debug:
+                        print(f"   Found {len(cards)} elements with selector: {selector}")
+            
+            # Remove duplicates while preserving order
+            seen = set()
+            unique_cards = []
+            for card in job_cards:
+                card_id = id(card)
+                if card_id not in seen:
+                    seen.add(card_id)
+                    unique_cards.append(card)
+            
+            if self.debug:
+                print(f"   Total unique elements found: {len(unique_cards)}")
+            
+            # Process each potential job card
+            for card in unique_cards:
+                try:
+                    job_data = self._parse_meinestadt_job_card(card, page_url)
+                    if job_data and self._is_valid_job_listing(job_data):
+                        jobs.append(job_data)
+                except Exception as e:
+                    if self.debug:
+                        print(f"   ⚠️ Error parsing card: {e}")
+                    continue
             
             # Fallback for simpler structures
             if not job_cards:
@@ -277,10 +264,62 @@ class MeinestadtScraper(BaseScraper):
     def _parse_meinestadt_job_card(self, card: Tag, page_url: str) -> Dict:
         """Parse individual MeineStadt.de job card."""
         
-        title = self._get_clean_text(card.find(class_=lambda x: x and 'job-title' in x))
-        company = self._get_clean_text(card.find(class_=lambda x: x and 'company' in x))
-        location = self._get_clean_text(card.find(class_=lambda x: x and 'location' in x))
+        # Try multiple strategies to extract title
+        title = ""
+        title_selectors = [
+            lambda x: x and 'job-title' in x,
+            lambda x: x and 'title' in x,
+            lambda x: x and 'position' in x,
+            lambda x: x and 'stelle' in x
+        ]
         
+        for selector in title_selectors:
+            title_elem = card.find(class_=selector)
+            if title_elem:
+                title = self._get_clean_text(title_elem)
+                if title:
+                    break
+        
+        # Fallback: look for any heading element
+        if not title:
+            for tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+                title_elem = card.find(tag)
+                if title_elem:
+                    title = self._get_clean_text(title_elem)
+                    if title and len(title) > 5:
+                        break
+        
+        # Extract company
+        company = ""
+        company_selectors = [
+            lambda x: x and 'company' in x,
+            lambda x: x and 'employer' in x,
+            lambda x: x and 'firma' in x
+        ]
+        
+        for selector in company_selectors:
+            company_elem = card.find(class_=selector)
+            if company_elem:
+                company = self._get_clean_text(company_elem)
+                if company:
+                    break
+        
+        # Extract location
+        location = ""
+        location_selectors = [
+            lambda x: x and 'location' in x,
+            lambda x: x and 'ort' in x,
+            lambda x: x and 'standort' in x
+        ]
+        
+        for selector in location_selectors:
+            location_elem = card.find(class_=selector)
+            if location_elem:
+                location = self._get_clean_text(location_elem)
+                if location:
+                    break
+        
+        # Extract URL
         link_element = card.find('a', href=True)
         job_url = ""
         if link_element and isinstance(link_element.get('href'), str):
@@ -288,7 +327,24 @@ class MeinestadtScraper(BaseScraper):
             if href:
                 job_url = urljoin(self.base_url, href)
         
-        description = self._get_clean_text(card.find(class_=lambda x: x and 'job-description' in x))
+        # Extract description
+        description = ""
+        description_selectors = [
+            lambda x: x and 'job-description' in x,
+            lambda x: x and 'description' in x,
+            lambda x: x and 'beschreibung' in x
+        ]
+        
+        for selector in description_selectors:
+            desc_elem = card.find(class_=selector)
+            if desc_elem:
+                description = self._get_clean_text(desc_elem)
+                if description:
+                    break
+        
+        # Fallback: use card text as description if no specific description found
+        if not description:
+            description = self._get_clean_text(card)
         
         return {
             'title': title,
@@ -432,8 +488,23 @@ class MeinestadtScraper(BaseScraper):
         # Basic validation: must have a title and URL
         if not job.get('title') or not job.get('url'):
             return False
-            
-        # Add more sophisticated checks if needed
-        # e.g., check for keywords, filter out ads, etc.
+        
+        # Check for minimum content
+        title = job.get('title', '').lower()
+        description = job.get('description', '').lower()
+        
+        # Must contain job-related keywords
+        job_keywords = ['entwickler', 'developer', 'engineer', 'programmierer', 'it', 'software', 'job', 'stelle', 'position', 'mitarbeiter', 'vollzeit', 'teilzeit']
+        if not any(keyword in title or keyword in description for keyword in job_keywords):
+            return False
+        
+        # Must not be navigation or non-job content
+        nav_keywords = ['seite', 'weiter', 'zurück', 'navigation', 'filter', 'sortieren', 'impressum', 'datenschutz', 'agb']
+        if any(keyword in title or keyword in description for keyword in nav_keywords):
+            return False
+        
+        # Must have reasonable title length
+        if len(title) < 5 or len(title) > 200:
+            return False
         
         return True 

@@ -98,6 +98,62 @@ class DataManagementView(BaseJobTracker):
             st.error(f"Error cleaning up {data_type}: {str(e)}")
             return False
     
+    def clear_all_data(self) -> dict:
+        """Clear all data from the database"""
+        try:
+            result = {
+                'job_listings': 0,
+                'applications': 0,
+                'offers': 0,
+                'emails': 0,
+                'filtered_jobs': 0,
+                'ignored_jobs': 0
+            }
+            
+            # Clear job offers first (they reference applications)
+            offers_query = "DELETE FROM job_offers"
+            self.db_manager.execute_query(offers_query)
+            
+            # Clear applications (they reference job_listings)
+            applications_query = "DELETE FROM applications"
+            self.db_manager.execute_query(applications_query)
+            
+            # Clear job applications (they reference job_listings)
+            job_applications_query = "DELETE FROM job_applications"
+            self.db_manager.execute_query(job_applications_query)
+            
+            # Clear filtered jobs
+            filtered_query = "DELETE FROM filtered_jobs"
+            self.db_manager.execute_query(filtered_query)
+            
+            # Clear ignored jobs (they reference job_listings)
+            ignored_query = "DELETE FROM ignored_jobs"
+            self.db_manager.execute_query(ignored_query)
+            
+            # Clear all job listings
+            listings_query = "DELETE FROM job_listings"
+            self.db_manager.execute_query(listings_query)
+            
+            # Clear email analysis data
+            emails_query = "DELETE FROM email_analysis"
+            self.db_manager.execute_query(emails_query)
+            
+            # Get counts for reporting
+            try:
+                # Count what was deleted (these will be 0 now, but we can get the counts from before)
+                result['job_listings'] = self.db_manager.execute_query("SELECT COUNT(*) FROM job_listings", fetch='one')[0] if self.db_manager.execute_query("SELECT COUNT(*) FROM job_listings", fetch='one') else 0
+                result['applications'] = self.db_manager.execute_query("SELECT COUNT(*) FROM applications", fetch='one')[0] if self.db_manager.execute_query("SELECT COUNT(*) FROM applications", fetch='one') else 0
+                result['offers'] = self.db_manager.execute_query("SELECT COUNT(*) FROM job_offers", fetch='one')[0] if self.db_manager.execute_query("SELECT COUNT(*) FROM job_offers", fetch='one') else 0
+                result['emails'] = self.db_manager.execute_query("SELECT COUNT(*) FROM email_analysis", fetch='one')[0] if self.db_manager.execute_query("SELECT COUNT(*) FROM email_analysis", fetch='one') else 0
+            except:
+                pass
+            
+            return result
+            
+        except Exception as e:
+            st.error(f"Error clearing all data: {str(e)}")
+            raise
+    
     def get_data_stats(self) -> dict:
         """Get statistics about the data"""
         try:
@@ -287,4 +343,42 @@ class DataManagementView(BaseJobTracker):
                         st.error(f"Error clearing email data: {str(e)}")
             with col2:
                 if st.button("No, Cancel", type="secondary"):
-                    st.session_state.confirm_email_clear = False 
+                    st.session_state.confirm_email_clear = False
+        
+        # Complete Data Cleanup
+        st.markdown("### 🗑️ Complete Data Cleanup")
+        st.error("🚨 **DANGER ZONE** - This will permanently delete ALL data from the database!")
+        
+        if 'confirm_complete_clear' not in st.session_state:
+            st.session_state.confirm_complete_clear = False
+            
+        if not st.session_state.confirm_complete_clear:
+            if st.button("🗑️ Clean Out Everything", type="secondary", help="This will delete ALL jobs, applications, offers, and email data"):
+                st.session_state.confirm_complete_clear = True
+        else:
+            st.error("🚨 **FINAL WARNING**: This will permanently delete ALL data from the database. This action cannot be undone!")
+            st.info("This will clear:")
+            st.markdown("""
+            - All job listings
+            - All job applications  
+            - All job offers
+            - All email analysis data
+            - All filtered jobs
+            - All ignored jobs
+            - All application data
+            """)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🚨 YES, DELETE EVERYTHING", type="primary"):
+                    try:
+                        result = self.clear_all_data()
+                        st.success(f"Successfully cleared all data!")
+                        st.info(f"Deleted: {result['job_listings']} job listings, {result['applications']} applications, {result['offers']} offers, {result['emails']} email records")
+                        st.session_state.confirm_complete_clear = False
+                        st.rerun()  # Refresh the page to show updated stats
+                    except Exception as e:
+                        st.error(f"Error clearing all data: {str(e)}")
+            with col2:
+                if st.button("❌ Cancel", type="secondary"):
+                    st.session_state.confirm_complete_clear = False 

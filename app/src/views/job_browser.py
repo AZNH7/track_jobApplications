@@ -154,8 +154,8 @@ class JobBrowserView(BaseView):
             
         with col2:
             status_options = ["All Jobs", "✅ Approved Only", "🚫 Filtered Only", "📝 Applied", "🙈 Ignored"]
-            # Default to "All Jobs" to show everything
-            current_status_filter = st.session_state.get('job_browser_filters', {}).get('status', 'All Jobs')
+            # Default to "✅ Approved Only" to show approved jobs
+            current_status_filter = st.session_state.get('job_browser_filters', {}).get('status', '✅ Approved Only')
             status_index = status_options.index(current_status_filter) if current_status_filter in status_options else 0
             selected_status = st.selectbox("🏷️ Status", status_options, index=status_index)
             
@@ -874,33 +874,6 @@ class JobBrowserView(BaseView):
     def _search_matching_emails_disabled(self, job: pd.Series):
         """Email matching functionality disabled - no longer available."""
         st.info("📧 Email matching functionality has been disabled in this version.")
-                        email_company = email[3]
-                        email_date = email[4]
-                        category = email[5]
-                        linked_job_id = email[6]
-
-                        with col1:
-                            st.markdown(f"**Subject:** {subject}")
-                            st.markdown(f"**From:** {sender} | **Company:** {email_company}")
-                            st.markdown(f"**Category:** {category} | **Date:** {email_date}")
-                        
-                        with col2:
-                            current_job_id = str(job.get('id'))
-                            if linked_job_id:
-                                if str(linked_job_id) == current_job_id:
-                                    st.success("✅ Linked")
-                                else:
-                                    st.warning("🔗 Linked to another job")
-                            else:
-                                if st.button("🔗 Confirm Link", key=f"link_email_{email_id}_{job.get('id')}"):
-                                    self._link_email_to_job(email_id, job)
-                        st.divider()
-            else:
-                st.info("📭 No matching emails found for this job.")
-                
-        except Exception as e:
-            self.logger.error(f"Error searching emails: {e}")
-            st.error(f"Error searching emails: {e}")
     
     def _link_email_to_job(self, email_id: str, job: pd.Series):
         """Link an email to a job application."""

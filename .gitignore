@@ -111,13 +111,7 @@ data/
 *.zip
 *.tar.gz
 
-# =================================================================
-# CV & Personal Files (Allow specific paths)
-# =================================================================
-*.pdf
-!shared/cv/README.md
-# Allow specific CV files if needed:
-# !shared/cv/resume.pdf
+
 
 # =================================================================
 # Operating System Files

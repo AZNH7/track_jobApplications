@@ -1,6 +1,6 @@
 # 🚀 Job Application Tracker
 
-A comprehensive, AI-powered job tracking system for the German job market with intelligent analysis and CV matching. Works seamlessly on **Windows**, **macOS**, and **Linux**.
+A comprehensive, AI-powered job tracking system for the German job market with intelligent analysis. Works seamlessly on **Windows**, **macOS**, and **Linux**.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker](https://img.shields.io/badge/Docker-Supported-blue.svg)](https://www.docker.com/)
@@ -19,35 +19,21 @@ A comprehensive, AI-powered job tracking system for the German job market with i
 
 ```
 job-tracker/
-├── streamlit-app/           # 🎯 Main Streamlit Application
-│   ├── src/                 # Core application code
-│   ├── docker-compose.yml  # Streamlit deployment
-│   ├── Dockerfile          # Streamlit container
+├── app/                    # 🎯 Main Application
+│   ├── src/                # Core application code
+│   ├── docker-compose.yml  # Docker deployment
+│   ├── Dockerfile          # Application container
 │   └── requirements.txt    # Python dependencies
 │
-├── web-app/                 # 🌐 Modern Web Interface
-│   ├── flask-backend/       # Flask API backend
-│   ├── django-backend/      # Django API backend (alternative)
-│   ├── react-frontend/      # React.js frontend
-│   ├── nginx/              # Nginx configuration
-│   └── docker-compose.yml  # Web app deployment
-│
-├── shared/                  # 📁 Shared Resources
+├── shared/                 # 📁 Shared Resources
 │   ├── data/               # Job data and databases
 │   ├── logs/               # Application logs
-│   ├── cv/                 # CV files for matching
-│   ├── postgres-init/      # Database initialization
-│   └── visualizations/     # Generated charts and graphs
+
+│   └── postgres-init/      # Database initialization
 │
-├── docs/                    # 📚 Documentation
-│   ├── README.md           # Main documentation
-│   ├── CHANGELOG.md        # Version history
-│   └── *.md               # Feature guides and setup docs
+├── docs/                   # 📚 Documentation (Future)
 │
-└── scripts/                 # 🔧 Utility Scripts
-    ├── *.py                # Python utilities
-    ├── *.sh                # Shell scripts
-    └── debug/              # Debug and testing tools
+└── scripts/                # 🔧 Utility Scripts
 ```
 
 To get started with the Job Tracker application, follow these steps:
@@ -86,17 +72,6 @@ docker-compose -f app/docker-compose.yml up --build
 - **Ollama** ([Download](https://ollama.ai/)) - Runs on your host machine (not in Docker)
 - **8GB+ RAM** - For running AI models on your local machine
 
-## 🎯 Interface Comparison
-
-| Feature | Streamlit App | Web App |
-|---------|---------------|---------|
-| **UI Style** | Data-focused dashboard | Modern web interface |
-| **Setup** | Single command | Multi-service stack |
-| **Performance** | Optimized for analysis | Scalable architecture |
-| **APIs** | Built-in | RESTful APIs |
-| **Database** | Direct PostgreSQL | API abstraction |
-| **Best Use** | Personal use, analysis | Team use, integration |
-
 ## 🔧 Configuration
 
 ### 📄 Environment Setup
@@ -106,24 +81,14 @@ Copy `app/env.template` to `.env` and configure:
 # Required: LinkedIn Authentication
 LINKEDIN_LI_AT="your_linkedin_cookie_here"
 
-# Database (Docker defaults work)
-POSTGRES_HOST=postgres
-POSTGRES_DB=jobtracker
-POSTGRES_USER=jobtracker
-POSTGRES_PASSWORD=secure_password_2024
-
 # AI Features (Ollama runs on host machine)
-OLLAMA_HOST=http://host.docker.internal:11434
-
-# Other services
-FLARESOLVERR_URL=http://flaresolverr-balancer:8190/v1
-REDIS_HOST=redis
+OLLAMA_HOST="http://host.docker.internal:11434"
 ```
 
 ### 📁 Directory Structure
 - **📊 Data**: `shared/data/` - Job data and exports
 - **📝 Logs**: `shared/logs/` - Application logs  
-- **📄 CVs**: `shared/cv/` - Your resume files
+
 - **🗄️ Database**: PostgreSQL container storage
 - **⚡ Cache**: Redis container storage
 
@@ -139,7 +104,7 @@ REDIS_HOST=redis
 - **Indeed** - Popular job board with German market focus  
 - **StepStone** - German job platform with work-from-home filters
 - **Xing** - German professional network
-- **Monster** - International job board
+
 - **Stellenanzeigen.de** - German job listings
 - **MeineStadt.de** - Local German jobs
 - **JobRapido** - Job aggregation platform
@@ -154,7 +119,7 @@ REDIS_HOST=redis
 
 ### 🤖 AI-Powered Features (Ollama Integration)
 - 🧠 **Intelligent Job Analysis**: Automatic job categorization and skill extraction
-- 🎯 **Smart CV Scoring**: AI-driven job matching with detailed breakdown
+
 - 💡 **Application Insights**: Personalized application strategies and tips
 - 📝 **Cover Letter Guidance**: AI-generated key points to highlight
 - 🎤 **Interview Preparation**: Focus areas and questions to ask
@@ -162,10 +127,10 @@ REDIS_HOST=redis
 - ✅ **Quality Assessment**: Job quality scoring and positive indicators
 - 🔒 **Privacy-First**: All AI processing happens locally on your host machine (Ollama)
 
-### Core Functionality (Both Interfaces)
+### Core Functionality
 - ✅ Multi-platform job scraping (Indeed, LinkedIn, Xing, etc.)
 - ✅ German location filtering
-- ✅ CV-based job matching
+
 - ✅ Duplicate detection
 - ✅ FlareSolverr Cloudflare bypass
 - ✅ PostgreSQL data storage
@@ -175,13 +140,6 @@ REDIS_HOST=redis
 - 🎯 Real-time job filtering
 - 📋 Comprehensive dashboard
 - 🔍 Advanced search and analysis
-
-### Web App-Specific
-- 🌐 RESTful API endpoints
-- ⚛️ React.js modern frontend
-- 🔄 Real-time updates
-- 👥 Multi-user support
-- 🔒 Authentication ready
 
 ## 🔍 Job Search Sources
 
@@ -195,7 +153,7 @@ The application supports multiple job search platforms with specialized scraping
 | **Indeed** | `https://de.indeed.com` | `https://de.indeed.com/jobs?` | Remote work filter, German market focus |
 | **StepStone** | `https://www.stepstone.de` | `https://www.stepstone.de/jobs/` | Work-from-home filter, language detection |
 | **Xing** | `https://www.xing.com` | `https://www.xing.com/jobs/search?` | German professional network |
-| **Monster** | `https://www.monster.de` | `https://www.monster.de/jobs/search?` | International job board |
+
 | **Stellenanzeigen** | `https://www.stellenanzeigen.de` | `https://www.stellenanzeigen.de/suche/?` | German job listings |
 | **MeineStadt** | `https://jobs.meinestadt.de` | `https://jobs.meinestadt.de/jobs?` | Local job focus |
 | **JobRapido** | `https://de.jobrapido.com` | `https://de.jobrapido.com/?` | Job aggregation platform |
@@ -225,7 +183,7 @@ When searching for "IT system" jobs in "Essen", the following URLs are generated
 | **Indeed** | `https://de.indeed.com/jobs?q=IT+system&l=Essen&start=0&sort=date&fromage=3&radius=35` |
 | **StepStone** | `https://www.stepstone.de/jobs/it-system?sort=2&action=sort_publish&location=Essen` |
 | **Xing** | `https://www.xing.com/jobs/search?keywords=IT+system&page=1&location=Essen` |
-| **Monster** | `https://www.monster.de/jobs/search?q=IT+system&where=Essen&page=1&lang=de` |
+
 | **Stellenanzeigen** | `https://www.stellenanzeigen.de/suche/?fulltext=IT+system&locationIds=12345` |
 | **MeineStadt** | `https://jobs.meinestadt.de/jobs?was=IT+system&seite=1&wo=Essen` |
 | **JobRapido** | `https://de.jobrapido.com/?q=IT+system&p=1&l=Essen` |

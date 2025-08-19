@@ -6,7 +6,6 @@
     "enable_alternative_sources": true,
     "enable_stepstone": true,
     "enable_xing": true,
-    "enable_monster": false,
     "enable_stellenanzeigen": true,
     "enable_meinestadt": true,
     "enable_jobrapido": true,
@@ -41,51 +40,10 @@
     },
     "preferred_language": "en"
   },
-  "job_titles": [
-    "System Administrator",
-    "IT System Administrator",
-    "Systems Engineer",
-    "IT Engineer",
-    "Technical Support Engineer",
-    "IT Support Specialist",
-    "IT Operations Engineer",
-    "System Integration Engineer",
-    "IT Integration",
-    "Technical Operations Engineer",
-    "IT Infrastructure Engineer",
-    "Senior IT system",
-    "Senior IT engineer",
-    "Senior IT Admin",
-    "Senior system admin",
-    "Senior system administrator",
-    "IT system",
-    "IT engineer",
-    "IT Admin"
-  ],
-  "default_job_titles": [
-    "System Administrator",
-    "IT System Administrator",
-    "Systems Engineer",
-    "IT Engineer",
-    "Technical Support Engineer",
-    "IT Support Specialist",
-    "IT Operations Engineer",
-    "System Integration Engineer",
-    "IT Integration",
-    "Technical Operations Engineer",
-    "IT Infrastructure Engineer",
-    "Senior IT system",
-    "Senior IT engineer",
-    "Senior IT Admin",
-    "Senior system admin",
-    "Senior system administrator",
-    "IT system",
-    "IT engineer",
-    "IT Admin"
-  ],
+
   "scraping": {
     "use_flaresolverr": true,
-    "flaresolverr_url": "http://flaresolverr-balancer:8190/v1",
+    "flaresolverr_url": "${FLARESOLVERR_URL}",
     "default_headless": true,
     "default_timeout": 60,
     "rate_limit_delay": 5.0,
@@ -103,17 +61,14 @@
       "xing": {
         "use_flaresolverr": false
       },
-      "monster": {
-        "use_flaresolverr": false
-      },
       "stellenanzeigen": {
         "use_flaresolverr": false
       },
       "meinestadt": {
-        "use_flaresolverr": false
+        "use_flaresolverr": true
       },
       "jobrapido": {
-        "use_flaresolverr": false
+        "use_flaresolverr": true
       }
     }
   },
@@ -127,24 +82,24 @@
   },
   "llm": {
     "enable_ollama": true,
-    "ollama_host": "http://host.docker.internal:11434",
-    "ollama_model": "llama3:8b",
+    "ollama_host": "${OLLAMA_HOST}",
+    "ollama_model": "${OLLAMA_MODEL}",
     "ollama_timeout": 300,
     "ollama_max_retries": 3,
     "enable_job_analysis": true,
-    "enable_cv_scoring": true,
+    
     "enable_application_insights": true
   },
   "database": {
-    "host": "postgres",
+    "host": "${POSTGRES_HOST}",
     "port": 5432,
-    "database": "jobtracker",
-    "user": "jobtracker",
-    "password": "jobtracker",
+    "database": "${POSTGRES_DB}",
+    "user": "${POSTGRES_USER}",
+    "password": "${POSTGRES_PASSWORD}",
     "connection_timeout": 30
   },
   "flaresolverr": {
-    "url": "http://flaresolverr:8191/v1",
+    "url": "${FLARESOLVERR_URL}",
     "timeout": 60
   }
 }

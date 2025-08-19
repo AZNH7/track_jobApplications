@@ -51,4 +51,4 @@ This software is designed for personal use to track job applications. Users are 
 - All job data is stored locally
 - No personal data is transmitted to external services (except Ollama for AI features)
 - Users are responsible for securing their own data
-- CV files and personal information remain on the user's system
+

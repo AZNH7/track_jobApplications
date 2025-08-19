@@ -12,23 +12,18 @@ services:
     # Use networks instead of host mode for better cross-platform compatibility
     networks:
       - job-tracker-network
-    env_file:
-      - ../.env
+    # env_file:
+    #   - ../.env
     environment:
+      - PYTHONPATH=/app/src
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - FLARESOLVERR_URL=http://flaresolverr-balancer:8190/v1
+      - POSTGRES_DB=${POSTGRES_DB:-jobtracker}
+      - POSTGRES_USER=${POSTGRES_USER:-jobtracker}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-jobtracker_password}
       - OLLAMA_HOST=http://host.docker.internal:11434
-      - CACHE_DURATION=300
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=0
-      - DATA_EXPORT_PATH=/app/exports
-      - DATA_IMPORT_PATH=/app/imports
-      - PYTHONPATH=/app
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
+      - FLARESOLVERR_URL=http://flaresolverr-balancer:8190/v1
       - STREAMLIT_SERVER_FILEWATCHER_ENABLED=false
       - STREAMLIT_SERVER_MAX_UPLOAD_SIZE=1024
       - STREAMLIT_SERVER_WORKERS=8
@@ -39,7 +34,7 @@ services:
       - "8501:8501"
     volumes:
       - ../shared:/app/shared
-      - ./src:/app/src
+      # - ./src:/app/src  # Commented out to use built-in src from Docker image
       - ../exports:/app/exports
       - ../imports:/app/imports
       - ../logs:/app/logs
@@ -60,9 +55,9 @@ services:
     image: postgres:16
     container_name: job-tracker-postgres
     environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-jobtracker}
+      - POSTGRES_USER=${POSTGRES_USER:-jobtracker}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-jobtracker_password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../shared/postgres-init:/docker-entrypoint-initdb.d
@@ -170,10 +165,14 @@ services:
     container_name: job-tracker-flaresolverr-balancer
     volumes:
       - ./nginx-flaresolverr.conf:/etc/nginx/nginx.conf:ro
+      - ./disable-ipv6.sh:/disable-ipv6.sh:ro
     ports:
       - "8190:8190"
     networks:
       - job-tracker-network
+    environment:
+      - NGINX_DISABLE_IPV6=true
+    entrypoint: ["/bin/sh", "/disable-ipv6.sh"]
     depends_on:
       - flaresolverr-1
       - flaresolverr-2

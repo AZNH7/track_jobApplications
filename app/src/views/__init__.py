@@ -8,7 +8,7 @@ from .job_browser import JobBrowserView
 from .platform_config import PlatformConfigView
 # Email features removed
 from .job_offers import JobOffersView
-from .cv_insights import CVInsightsView
+
 from .enhanced_job_search import EnhancedJobSearchView
 # Enhanced email analyzer removed
 
@@ -20,6 +20,6 @@ __all__ = [
     'JobBrowserView',
     'PlatformConfigView',
     'JobOffersView',
-    'CVInsightsView',
+
     'EnhancedJobSearchView'
 ] 
