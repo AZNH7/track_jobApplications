@@ -1,93 +1,334 @@
-# track_jobApplications
+# 🚀 Job Application Tracker
 
+A comprehensive, AI-powered job tracking system for the German job market with intelligent analysis. Works seamlessly on **Windows**, **macOS**, and **Linux**.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Docker](https://img.shields.io/badge/Docker-Supported-blue.svg)](https://www.docker.com/)
+[![Cross-Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/)
 
-## Getting started
+## ✨ Key Features
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+🤖 **AI-Powered Analysis** - Local Ollama integration for intelligent job categorization  
+📊 **Multi-Platform Scraping** - LinkedIn, Indeed, StepStone, Xing, and more  
+🔍 **Advanced Filtering** - Remote work, location, skills, and salary filters  
+📈 **Data Visualization** - Interactive charts and insights  
+🔒 **Privacy-First** - All data processed locally, no external data sharing  
+🌍 **Cross-Platform** - Works on Windows, macOS, and Linux
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+## 🏗️ Repository Structure
 
 ```
-cd existing_repo
-git remote add origin http://gitlab.aznh7.com/work/track_jobapplications.git
-git branch -M main
-git push -uf origin main
+job-tracker/
+├── app/                    # 🎯 Main Application
+│   ├── src/                # Core application code
+│   ├── docker-compose.yml  # Docker deployment
+│   ├── Dockerfile          # Application container
+│   └── requirements.txt    # Python dependencies
+│
+├── shared/                 # 📁 Shared Resources
+│   ├── data/               # Job data and databases
+│   ├── logs/               # Application logs
+
+│   └── postgres-init/      # Database initialization
+│
+├── docs/                   # 📚 Documentation (Future)
+│
+└── scripts/                # 🔧 Utility Scripts
 ```
 
-## Integrate with your tools
+To get started with the Job Tracker application, follow these steps:
 
-- [ ] [Set up project integrations](http://gitlab.aznh7.com/work/track_jobapplications/-/settings/integrations)
+1.  **Clone the repository:**
+    ```bash
+    git clone https://your-repository-url.com/job-tracker.git
+    cd job-tracker
+    ```
 
-## Collaborate with your team
+2.  **Run the start script:**
+    This will configure the environment and launch the application.
+    ```bash
+    ./start.sh
+    ```
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+3.  **Access the application:**
+    Open your web browser and go to `http://localhost:8501`.
 
-## Test and Deploy
+### Manual Docker-Compose
 
-Use the built-in continuous integration in GitLab.
+If you prefer to run the application manually, you can use `docker-compose`:
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+```bash
+docker-compose -f app/docker-compose.yml up --build
+```
 
-***
+## 📋 Prerequisites
 
-# Editing this README
+### Required (All Platforms)
+- **Docker Desktop** ([Windows](https://docs.docker.com/desktop/windows/), [macOS](https://docs.docker.com/desktop/mac/), [Linux](https://docs.docker.com/engine/install/))
+- **Git** ([Download](https://git-scm.com/downloads))
+- **4GB+ RAM** (8GB+ recommended for AI features)
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+### Optional (For AI Features)
+- **Ollama** ([Download](https://ollama.ai/)) - Runs on your host machine (not in Docker)
+- **8GB+ RAM** - For running AI models on your local machine
 
-## Suggestions for a good README
+## 🔧 Configuration
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+### 📄 Environment Setup
+Copy `app/env.template` to `.env` and configure:
 
-## Name
-Choose a self-explaining name for your project.
+```bash
+# Required: LinkedIn Authentication
+LINKEDIN_LI_AT="your_linkedin_cookie_here"
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+# AI Features (Ollama runs on host machine)
+OLLAMA_HOST="http://host.docker.internal:11434"
+```
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+### 📁 Directory Structure
+- **📊 Data**: `shared/data/` - Job data and exports
+- **📝 Logs**: `shared/logs/` - Application logs  
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+- **🗄️ Database**: PostgreSQL container storage
+- **⚡ Cache**: Redis container storage
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+### 🔑 Getting LinkedIn Cookie
+1. Login to LinkedIn in your browser
+2. Open Developer Tools (F12)
+3. Go to Application/Storage → Cookies → https://www.linkedin.com
+4. Copy the `li_at` cookie value
+5. Paste it in your `.env` file
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+### 🔧 Supported Job Platforms
+- **LinkedIn** - Professional network with remote job filtering
+- **Indeed** - Popular job board with German market focus  
+- **StepStone** - German job platform with work-from-home filters
+- **Xing** - German professional network
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+- **Stellenanzeigen.de** - German job listings
+- **MeineStadt.de** - Local German jobs
+- **JobRapido** - Job aggregation platform
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+### 🚀 Performance Features
+- **Multi-FlareSolverr Support** - Load balancing across multiple Cloudflare bypass instances
+- **Redis Caching** - Fast data retrieval and reduced database load
+- **Parallel Scraping** - Concurrent searches across multiple platforms
+- **Smart Rate Limiting** - Avoids being blocked by job sites
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+## 📊 Features
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+### 🤖 AI-Powered Features (Ollama Integration)
+- 🧠 **Intelligent Job Analysis**: Automatic job categorization and skill extraction
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+- 💡 **Application Insights**: Personalized application strategies and tips
+- 📝 **Cover Letter Guidance**: AI-generated key points to highlight
+- 🎤 **Interview Preparation**: Focus areas and questions to ask
+- ⚠️ **Red Flag Detection**: Identify potential concerns in job postings
+- ✅ **Quality Assessment**: Job quality scoring and positive indicators
+- 🔒 **Privacy-First**: All AI processing happens locally on your host machine (Ollama)
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+### Core Functionality
+- ✅ Multi-platform job scraping (Indeed, LinkedIn, Xing, etc.)
+- ✅ German location filtering
 
-## License
-For open source projects, say how it is licensed.
+- ✅ Duplicate detection
+- ✅ FlareSolverr Cloudflare bypass
+- ✅ PostgreSQL data storage
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+### Streamlit-Specific
+- 📈 Interactive data visualizations
+- 🎯 Real-time job filtering
+- 📋 Comprehensive dashboard
+- 🔍 Advanced search and analysis
+
+## 🔍 Job Search Sources
+
+The application supports multiple job search platforms with specialized scraping capabilities:
+
+### Supported Platforms
+
+| Platform | Base URL | Search URL | Special Features |
+|----------|----------|------------|------------------|
+| **LinkedIn** | `https://www.linkedin.com` | `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?` | Remote job filtering, AI-powered analysis |
+| **Indeed** | `https://de.indeed.com` | `https://de.indeed.com/jobs?` | Remote work filter, German market focus |
+| **StepStone** | `https://www.stepstone.de` | `https://www.stepstone.de/jobs/` | Work-from-home filter, language detection |
+| **Xing** | `https://www.xing.com` | `https://www.xing.com/jobs/search?` | German professional network |
+
+| **Stellenanzeigen** | `https://www.stellenanzeigen.de` | `https://www.stellenanzeigen.de/suche/?` | German job listings |
+| **MeineStadt** | `https://jobs.meinestadt.de` | `https://jobs.meinestadt.de/jobs?` | Local job focus |
+| **JobRapido** | `https://de.jobrapido.com` | `https://de.jobrapido.com/?` | Job aggregation platform |
+
+### Key Features
+- **Remote Job Support**: LinkedIn, Indeed, and StepStone have special handling for remote positions
+- **Language Filtering**: Most platforms support English/German language filtering
+- **Anti-bot Protection**: FlareSolverr integration for bypassing protection mechanisms
+- **Rate Limiting**: Intelligent delays between requests to avoid being blocked
+- **Parallel Processing**: Optimized for concurrent scraping across multiple platforms
+
+### Search Parameters
+Each platform uses specific parameters for job searches:
+- **Keywords**: Job title, skills, or company names
+- **Location**: Geographic location or "Remote" for remote positions
+- **Pagination**: Page-based or offset-based navigation
+- **Filters**: Date range, radius, language, work type (remote/onsite)
+
+### Example Search URLs
+
+#### Standard Search (Essen)
+When searching for "IT system" jobs in "Essen", the following URLs are generated:
+
+| Platform | Example Search URL |
+|----------|-------------------|
+| **LinkedIn** | `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=IT+system&location=Essen&f_TPR=r604800&sortBy=DD&start=0` |
+| **Indeed** | `https://de.indeed.com/jobs?q=IT+system&l=Essen&start=0&sort=date&fromage=3&radius=35` |
+| **StepStone** | `https://www.stepstone.de/jobs/it-system?sort=2&action=sort_publish&location=Essen` |
+| **Xing** | `https://www.xing.com/jobs/search?keywords=IT+system&page=1&location=Essen` |
+
+| **Stellenanzeigen** | `https://www.stellenanzeigen.de/suche/?fulltext=IT+system&locationIds=12345` |
+| **MeineStadt** | `https://jobs.meinestadt.de/jobs?was=IT+system&seite=1&wo=Essen` |
+| **JobRapido** | `https://de.jobrapido.com/?q=IT+system&p=1&l=Essen` |
+
+#### Remote Job Search
+When searching for "IT system" remote jobs:
+
+| Platform | Example Remote Search URL |
+|----------|---------------------------|
+| **LinkedIn** | `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=IT+system&location=Germany&f_TPR=r604800&sortBy=DD&start=0&f_WT=2&geoId=101282230&distance=25` |
+| **Indeed** | `https://de.indeed.com/jobs?q=IT+system&l=germany&start=0&sort=date&fromage=3&radius=35&sc=0kf%3Aattr%28DSQF7%29%3B` |
+| **StepStone** | `https://www.stepstone.de/jobs/it-system?sort=2&action=sort_publish&location=germany&wfh=1&radius=30&action=facet_selected%3bworkFromHome%3b1` |
+| **Stellenanzeigen** | `https://www.stellenanzeigen.de/suche/?fulltext=IT+system&locationIds=X-HO-100` |
+
+#### English-Only Search
+When searching for "IT system" jobs in English only:
+
+| Platform | Example English-Only Search URL |
+|----------|--------------------------------|
+| **LinkedIn** | `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=IT+system&location=Essen&f_TPR=r604800&sortBy=DD&start=0` |
+| **Indeed** | `https://de.indeed.com/jobs?q=IT+system&l=Essen&start=0&sort=date&fromage=3&radius=35&lang=en` |
+| **StepStone** | `https://www.stepstone.de/jobs/it-system?sort=2&action=sort_publish&fdl=en` |
+
+**Notes**: 
+- **Stellenanzeigen** uses location IDs instead of text names
+- **LinkedIn, Xing, Stellenanzeigen, MeineStadt, JobRapido** handle language filtering in post-processing
+- **Remote jobs** on LinkedIn, Indeed, and StepStone use special filter parameters
+- Some platforms include additional anti-bot protection parameters
+
+## 🛠️ Common Commands
+
+### Application Management
+```bash
+# Start application
+docker-compose up -d
+
+# Stop application  
+docker-compose down
+
+# View logs
+docker-compose logs -f
+
+# Restart specific service
+docker-compose restart job-tracker
+
+# Update application
+git pull
+docker-compose up -d --build
+```
+
+### Troubleshooting
+```bash
+# Check container status
+docker-compose ps
+
+# Check resource usage
+docker stats
+
+# Clean up (WARNING: removes all data)
+docker-compose down -v
+docker system prune -a
+```
+
+### Development Mode
+```bash
+# Edit source files in app/src/
+# Restart container to see changes
+docker-compose restart job-tracker
+
+# Monitor logs for debugging
+docker-compose logs -f job-tracker
+```
+
+## 📚 Documentation
+
+- **AI Integration**: `docs/OLLAMA_INTEGRATION_GUIDE.md`
+- **Setup Guides**: `docs/`
+- **API Documentation**: `web-app/*/README.md`
+- **Troubleshooting**: `docs/WEB_TEST_TROUBLESHOOTING.md`
+- **Performance Tuning**: `docs/SPEED_OPTIMIZATION_GUIDE.md`
+
+## 🤖 AI Setup (Optional)
+
+The AI features use **Ollama running on your host machine** (not in Docker).
+
+### Install Ollama on Your Host Machine
+```bash
+# Windows: Download from https://ollama.ai/
+# macOS: brew install ollama
+# Linux: curl -fsSL https://ollama.ai/install.sh | sh
+
+# Download AI model (runs on your machine)
+ollama pull llama3.2:latest
+
+# Start Ollama service (keep running)
+ollama serve
+```
+
+### AI Requirements (Host Machine)
+- **RAM**: 8GB+ recommended for `llama3.2:latest`
+- **Storage**: ~5GB for the AI model on your local machine
+- **CPU**: Multi-core recommended for faster analysis
+- **Internet**: Required for initial model download only
+
+**Note**: Ollama runs on your host machine at `localhost:11434`, and the Docker containers connect to it via `host.docker.internal:11434`.
+
+## 🛡️ Privacy & Security
+
+- **🔒 Local Processing**: All data stays on your machine
+- **🚫 No Data Sharing**: No personal information sent to external services
+- **🔐 Secure Storage**: Credentials stored in local environment files only
+- **⚠️ Responsible Scraping**: Respects website terms of service and rate limits
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Make your changes in `app/src/`
+4. Test with Docker: `docker-compose up -d --build`
+5. Commit your changes: `git commit -m 'Add amazing feature'`
+6. Push to the branch: `git push origin feature/amazing-feature`
+7. Open a Pull Request
+
+## ⚠️ Disclaimer
+
+This tool is for personal use to track job applications. Users are responsible for:
+- Complying with website terms of service
+- Respecting rate limits and robots.txt files  
+- Using scraped data in accordance with applicable laws
+- Not violating any platform's terms of use
+
+## 💬 Support
+
+- 🐛 **Bug Reports**: Open an issue with detailed reproduction steps
+- 💡 **Feature Requests**: Open an issue with your enhancement proposal
+- 📖 **Documentation**: Check the `docs/` directory for detailed guides
+- 🤔 **Questions**: Start a discussion in the repository
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Streamlit for the amazing web framework
+- Docker for containerization
+- Ollama for local AI capabilities (runs on host machine)
+- All the open-source libraries that make this project possible 
