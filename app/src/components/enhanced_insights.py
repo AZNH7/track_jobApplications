@@ -56,11 +56,11 @@ class EnhancedInsights:
                 if len(salary_data) > 0:
                     salary_std = salary_data.std()
                     salary_mean = salary_data.mean()
-                    cv = salary_std / salary_mean if salary_mean > 0 else 0
+                    coefficient_of_variation = salary_std / salary_mean if salary_mean > 0 else 0
                     
                     st.metric(
                         "Salary Variability",
-                        f"{cv:.2f}",
+                        f"{coefficient_of_variation:.2f}",
                         help="Coefficient of variation (higher = more salary variation)"
                     )
     
@@ -525,7 +525,7 @@ class EnhancedInsights:
                 st.warning("⚠️ **Low Success Rate**: Consider improving your application strategy")
                 st.markdown("""
                 **Suggestions:**
-                - Review and update your CV
+                - Review and update your resume
                 - Customize cover letters for each application
                 - Follow up on applications after 1-2 weeks
                 - Practice interview skills

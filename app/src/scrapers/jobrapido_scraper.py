@@ -195,15 +195,13 @@ class JobrapidoScraper(BaseScraper):
         return unique_jobs
 
     def _detect_invalid_search_results(self, soup: BeautifulSoup, page_url: str) -> bool:
-        """Detect if the search results page contains invalid content (like favourite jobs)."""
+        """Detect if the search results page contains invalid content."""
         try:
             page_text = soup.get_text().lower()
             
             # Check for indicators of invalid pages
             invalid_indicators = [
                 'favouritejobs',
-                'favoriten',
-                'favoris',
                 'möchten sie ihre favorisierten',
                 'ihre vorteile',
                 'hier klicken',
@@ -212,23 +210,37 @@ class JobrapidoScraper(BaseScraper):
                 'zu viele anfragen',
                 'too many requests',
                 'rate limit',
-                'access denied'
+                'access denied',
+                'blocked',
+                'forbidden',
+                'cloudflare',
+                'captcha',
+                'challenge'
             ]
             
-            # If any invalid indicator is found, return True
-            if any(indicator in page_text for indicator in invalid_indicators):
+            # Check for actual job listings in the HTML structure FIRST
+            job_elements = soup.find_all(['div', 'article', 'li'], class_=lambda x: x and any(term in x.lower() for term in ['job', 'position', 'stelle', 'listing']))
+            
+            # If we found job elements, the page is likely valid regardless of other indicators
+            if job_elements and len(job_elements) > 5:
+                if self.debug:
+                    print(f"   ✅ Found {len(job_elements)} job elements, page appears valid")
+                return False
+            
+            # Check if the page has job-related elements in text
+            job_indicators = ['job', 'position', 'stelle', 'arbeit', 'career', 'employment', 'entwickler', 'developer', 'engineer']
+            job_related_count = sum(1 for indicator in job_indicators if indicator in page_text)
+            
+            # Only consider invalid if we have invalid indicators AND very few job-related terms
+            if any(indicator in page_text for indicator in invalid_indicators) and job_related_count < 3:
                 if self.debug:
                     print(f"   🚫 Detected invalid search results page: {page_url}")
                 return True
             
-            # Check if the page has very few job-related elements
-            job_indicators = ['job', 'position', 'stelle', 'arbeit', 'career']
-            job_related_count = sum(1 for indicator in job_indicators if indicator in page_text)
-            
-            # If page has very few job-related terms, it might be invalid
-            if job_related_count < 2:
+            # More lenient check - only consider invalid if very few job-related terms AND page is very short
+            if job_related_count < 1 and len(page_text) < 500:
                 if self.debug:
-                    print(f"   ⚠️ Page has very few job-related terms, might be invalid")
+                    print(f"   ⚠️ Page has very few job-related terms and is short, might be invalid")
                 return True
             
             return False
@@ -288,7 +300,7 @@ class JobrapidoScraper(BaseScraper):
                 try:
                     if isinstance(card, Tag):
                         job_data = self._parse_jobrapido_job_card(card, page_url)
-                        if job_data and job_data.get('title'):
+                        if job_data and self._is_valid_job_listing(job_data):
                             jobs.append(job_data)
                 except Exception as e:
                     if self.debug:
@@ -343,6 +355,32 @@ class JobrapidoScraper(BaseScraper):
         }
 
         return job_data
+
+    def _is_valid_job_listing(self, job: Dict) -> bool:
+        """Validate if a scraped item is a valid job listing."""
+        # Basic validation: must have a title and URL
+        if not job.get('title') or not job.get('url'):
+            return False
+        
+        # Check for minimum content
+        title = job.get('title', '').lower()
+        description = job.get('description', '').lower()
+        
+        # Must contain job-related keywords
+        job_keywords = ['entwickler', 'developer', 'engineer', 'programmierer', 'it', 'software', 'job', 'stelle', 'position', 'mitarbeiter', 'vollzeit', 'teilzeit']
+        if not any(keyword in title or keyword in description for keyword in job_keywords):
+            return False
+        
+        # Must not be navigation or non-job content
+        nav_keywords = ['seite', 'weiter', 'zurück', 'navigation', 'filter', 'sortieren', 'impressum', 'datenschutz', 'agb']
+        if any(keyword in title or keyword in description for keyword in nav_keywords):
+            return False
+        
+        # Must have reasonable title length
+        if len(title) < 5 or len(title) > 200:
+            return False
+        
+        return True
 
     def fetch_job_details(self, job_url: str) -> Optional[Dict[str, Any]]:
         """Fetch detailed information for a single job from its URL."""

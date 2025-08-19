@@ -61,12 +61,7 @@ class PlatformConfigView(BaseJobTracker):
                     index=0
                 )
             
-            # Monster settings
-            st.subheader("Monster Settings")
-            monster_enabled = st.checkbox(
-                "Enable Monster",
-                value=job_search_config.get("enable_alternative_sources", False)
-            )
+
             
             # Save button
             submitted = st.form_submit_button("Save Configuration")
@@ -77,7 +72,7 @@ class PlatformConfigView(BaseJobTracker):
                 self.config_manager.set("job_search.indeed_country", "de")  # Always Germany
                 self.config_manager.set("job_search.preferred_language", indeed_language if indeed_enabled else "de")
                 self.config_manager.set("job_search.enable_linkedin", linkedin_enabled)
-                self.config_manager.set("job_search.enable_alternative_sources", monster_enabled)
+
                 
                 st.success("Configuration saved successfully!")
                 time.sleep(1)  # Give user time to see the success message
@@ -130,8 +125,7 @@ class PlatformConfigView(BaseJobTracker):
                 platforms.append("indeed")
             if job_search_config.get("enable_linkedin", True):
                 platforms.append("linkedin")
-            if job_search_config.get("enable_alternative_sources", False):
-                platforms.append("monster")
+
             
             if not platforms:
                 st.warning("No platforms enabled for testing")

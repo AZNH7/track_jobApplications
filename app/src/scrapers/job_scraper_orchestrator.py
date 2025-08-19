@@ -14,10 +14,9 @@ import os
 
 try:
     from .indeed_scraper import IndeedScraper
-    # Enhanced LinkedIn scraper removed - using standard linkedin_scraper
+    from .linkedin_scraper import LinkedInScraper
     from .stepstone_scraper import StepStoneScraper
     from .xing_scraper import XingScraper
-    from .monster_scraper import MonsterScraper
     from .stellenanzeigen_scraper import StellenanzeigenScraper
     from .meinestadt_scraper import MeinestadtScraper
     from .jobrapido_scraper import JobrapidoScraper
@@ -27,10 +26,9 @@ except ImportError:
     import sys
     sys.path.append(os.path.dirname(os.path.dirname(__file__)))
     from indeed_scraper import IndeedScraper
-    # Enhanced LinkedIn scraper removed - using standard linkedin_scraper
+    from linkedin_scraper import LinkedInScraper
     from stepstone_scraper import StepStoneScraper
     from xing_scraper import XingScraper
-    from monster_scraper import MonsterScraper
     from stellenanzeigen_scraper import StellenanzeigenScraper
     from meinestadt_scraper import MeinestadtScraper
     from jobrapido_scraper import JobrapidoScraper
@@ -66,8 +64,7 @@ class JobScraperOrchestrator:
         # Initialize scrapers
         self.scrapers = self._initialize_scrapers()
         
-        # Initialize CV matcher if available
-        self.cv_matcher = self._initialize_cv_matcher()
+
         
         # Initialize Ollama client for LLM assessment
         try:
@@ -97,7 +94,6 @@ class JobScraperOrchestrator:
                 'enable_linkedin': True,
                 'enable_stepstone': True,
                 'enable_xing': True,
-                'enable_monster': True,
                 'enable_stellenanzeigen': True,
                 'enable_meinestadt': True,
                 'enable_jobrapido': True,
@@ -123,7 +119,7 @@ class JobScraperOrchestrator:
         if self.config['job_search'].get('enable_linkedin', True):
             linkedin_use_flaresolverr = self.config.get('platform_settings', {}).get('linkedin', {}).get('use_flaresolverr', self.use_flaresolverr)
             linkedin_args = {'debug': self.debug, 'use_flaresolverr': linkedin_use_flaresolverr}
-            scrapers['LinkedIn'] = EnhancedLinkedInScraper(**linkedin_args)
+            scrapers['LinkedIn'] = LinkedInScraper(**linkedin_args)
         
         if self.config['job_search'].get('enable_stepstone', True):
             stepstone_use_flaresolverr = self.config.get('platform_settings', {}).get('stepstone', {}).get('use_flaresolverr', self.use_flaresolverr)
@@ -134,11 +130,6 @@ class JobScraperOrchestrator:
             xing_use_flaresolverr = self.config.get('platform_settings', {}).get('xing', {}).get('use_flaresolverr', self.use_flaresolverr)
             xing_args = {'debug': self.debug, 'use_flaresolverr': xing_use_flaresolverr}
             scrapers['Xing'] = XingScraper(**xing_args)
-        
-        if self.config['job_search'].get('enable_monster', True):
-            monster_use_flaresolverr = self.config.get('platform_settings', {}).get('monster', {}).get('use_flaresolverr', self.use_flaresolverr)
-            monster_args = {'debug': self.debug, 'use_flaresolverr': monster_use_flaresolverr}
-            scrapers['Monster'] = MonsterScraper(**monster_args)
         
         if self.config['job_search'].get('enable_stellenanzeigen', True):
             stellenanzeigen_use_flaresolverr = self.config.get('platform_settings', {}).get('stellenanzeigen', {}).get('use_flaresolverr', self.use_flaresolverr)
@@ -157,31 +148,7 @@ class JobScraperOrchestrator:
         
         return scrapers
     
-    def _initialize_cv_matcher(self):
-        """Initialize CV matcher if CV file is available."""
-        try:
-            from cv_matcher import AdvancedCVMatcher
-        except ImportError:
-            if self.debug:
-                print("⚠️ CV Matcher not available. CV matching will be disabled.")
-            return None
 
-        cv_paths = ['/app/cv/resume.pdf', '/app/cv/resume.docx', '/app/cv/resume.txt']
-        
-        for path in cv_paths:
-            if os.path.exists(path):
-                try:
-                    cv_matcher = AdvancedCVMatcher(path)
-                    if self.debug:
-                        print(f"✅ CV matcher initialized with {path}")
-                    return cv_matcher
-                except Exception as e:
-                    if self.debug:
-                        print(f"❌ Failed to initialize CV matcher with {path}: {e}")
-        
-        if self.debug:
-            print("⚠️ No CV file found. CV matching will be disabled.")
-        return None
     
     def search_all_platforms(self, keywords: Union[str, List[str]], location: str = "", 
                            max_pages: int = 2, english_only: bool = False, 
@@ -298,7 +265,7 @@ class JobScraperOrchestrator:
         print(f"   🎯 Selected platforms: {', '.join(selected_platforms)}")
         print(f"   🔍 English only: {english_only}")
         print(f"   🔍 Deep scrape: {deep_scrape}")
-        print(f"   🔍 CV matcher: {self.cv_matcher}")
+
         print(f"   🔍 Scrapers: {self.scrapers}")
         print(f"   🔍 Job found: {all_jobs}")
         
@@ -722,11 +689,7 @@ class JobScraperOrchestrator:
         # Add a unique ID for each job
         df['unique_id'] = df.apply(lambda row: f"{row.get('platform', 'na')}_{row.get('company', 'na')}_{row.get('title', 'na')}", axis=1)
 
-        # CV Match Score (if enabled)
-        if self.cv_matcher:
-            df['cv_match_score'] = df.apply(lambda row: self._calculate_cv_match_score(row, keywords_str), axis=1)
-            # Sort by CV match score
-            df = df.sort_values(by='cv_match_score', ascending=False)
+
         
         return df
     
@@ -943,32 +906,7 @@ class JobScraperOrchestrator:
             
             return pd.DataFrame(all_processed_jobs)
     
-    def _calculate_cv_match_score(self, job_row: pd.Series, keywords: str) -> float:
-        """Calculate CV match score for a single job."""
-        try:
-            if not self.cv_matcher:
-                return 0.0
-            
-            # Ensure job_row is a dictionary
-            job_details = job_row.to_dict() if isinstance(job_row, pd.Series) else job_row
-            
-            # Some columns might be NaN, which can cause issues
-            for key, value in job_details.items():
-                if pd.isna(value):
-                    job_details[key] = None
 
-            match_result = self.cv_matcher.calculate_match_score(
-                job_description=job_details.get('description', ''),
-                job_title=job_details.get('title', '')
-            )
-            if isinstance(match_result, dict):
-                return match_result.get('total_score', 0.0)
-            return 0.0
-        
-        except Exception as e:
-            if self.debug:
-                print(f"Error calculating CV match score: {e}")
-            return 0.0
     
     def save_to_database(self, df: pd.DataFrame, db_path: Optional[str] = None):
         """Save jobs to database."""
@@ -1096,43 +1034,48 @@ class JobScraperOrchestrator:
                     continue
                 
                 # Apply enhanced location filtering using JobFilters
-                # Skip location filtering for Indeed jobs since they already come with location-based filtering
-                try:
-                    # Check if this is an Indeed job
-                    job_url = (job.get('url', '') or '').lower()
-                    job_platform = (job.get('platform', '') or '').lower()
-                    job_source = (job.get('source', '') or '').lower()
-                    is_indeed_job = ('indeed.com' in job_url or 
-                                   job_platform == 'indeed' or 
-                                   job_source == 'indeed')
-                    
-                    if is_indeed_job:
-                        print(f"   ✅ Skipping location filter for Indeed job: {job.get('title')} at {job.get('location', 'Unknown')}")
-                        # Indeed jobs are already location-filtered by the search, so keep them
-                    else:
-                        # Convert single job to list for JobFilters
-                        job_list = [job]
+                # Check if location filtering is enabled in config
+                location_filter_enabled = getattr(self, 'config', {}).get('filters', {}).get('location_filter_enabled', True)
+                
+                if location_filter_enabled:
+                    try:
+                        # Check if this is an Indeed job
+                        job_url = (job.get('url', '') or '').lower()
+                        job_platform = (job.get('platform', '') or '').lower()
+                        job_source = (job.get('source', '') or '').lower()
+                        is_indeed_job = ('indeed.com' in job_url or 
+                                       job_platform == 'indeed' or 
+                                       job_source == 'indeed')
                         
-                        # Use the searched location for filtering instead of hardcoded Essen
-                        searched_locations = [self.searched_location] if hasattr(self, 'searched_location') and self.searched_location else None
-                        
-                        filtered_jobs = JobFilters.filter_by_location(
-                            job_list, 
-                            searched_locations=searched_locations,
-                            platform_name="Pre-Save Validation",
-                            use_enhanced_filtering=True,
-                            max_distance_km=50.0
-                        )
-                        
-                        if not filtered_jobs:
-                            print(f"   🚫 Location Filtered (50km from {self.searched_location if hasattr(self, 'searched_location') else 'Essen'}): {job.get('title')} at {job.get('location', 'Unknown')}")
-                            continue
-                        
-                        # Update job with filtered version
-                        job = filtered_jobs[0]
-                except Exception as e:
-                    print(f"   ⚠️ Location filtering error: {e}")
-                    # Continue with original job if filtering fails
+                        if is_indeed_job:
+                            print(f"   ✅ Skipping location filter for Indeed job: {job.get('title')} at {job.get('location', 'Unknown')}")
+                            # Indeed jobs are already location-filtered by the search, so keep them
+                        else:
+                            # Convert single job to list for JobFilters
+                            job_list = [job]
+                            
+                            # Use the searched location for filtering instead of hardcoded Essen
+                            searched_locations = [self.searched_location] if hasattr(self, 'searched_location') and self.searched_location else None
+                            
+                            filtered_jobs = JobFilters.filter_by_location(
+                                job_list, 
+                                searched_locations=searched_locations,
+                                platform_name="Pre-Save Validation",
+                                use_enhanced_filtering=True,
+                                max_distance_km=50.0
+                            )
+                            
+                            if not filtered_jobs:
+                                print(f"   🚫 Location Filtered (50km from {self.searched_location if hasattr(self, 'searched_location') else 'Essen'}): {job.get('title')} at {job.get('location', 'Unknown')}")
+                                continue
+                            
+                            # Update job with filtered version
+                            job = filtered_jobs[0]
+                    except Exception as e:
+                        print(f"   ⚠️ Location filtering error: {e}")
+                        # Continue with original job if filtering fails
+                else:
+                    print(f"   ✅ Location filtering disabled - keeping job: {job.get('title')} at {job.get('location', 'Unknown')}")
                 
                 # Use LLM to make filtering decision
                 llm_assessment = self._llm_job_assessment(job)
@@ -1755,7 +1698,7 @@ class JobScraperOrchestrator:
             - Focus on technical skills, programming languages, frameworks, and IT infrastructure
             - Pay attention to salary information when available
             - Assess company legitimacy and location validity
-            - Consider the CV data that has been analyzed and the job description to assess the relevance of the job to the CV  
+              
             - Location validation: If location contains USA, United States, America, Canadian cities, UK cities, London, New York, California, Texas, etc. → REJECT immediately
             - SEARCHED LOCATION: {searched_location} - Use this as the reference location for distance filtering
             - IMPORTANT: If job location contains "{searched_location}" or is very close to it, KEEP the job regardless of other factors

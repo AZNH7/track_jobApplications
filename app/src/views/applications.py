@@ -63,6 +63,7 @@ class ApplicationsView(BaseJobTracker):
         
         # Filter data
         filtered_data = applications_df
+        
         if status_filter != "All":
             filtered_data = filtered_data[filtered_data['status'] == status_filter]
 

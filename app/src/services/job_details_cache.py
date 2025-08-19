@@ -75,7 +75,7 @@ class JobDetailsCache:
             'Indeed': {'expiry_days': 180, 'priority': 'high'},
             'Stepstone': {'expiry_days': 180, 'priority': 'high'},
             'Xing': {'expiry_days': 150, 'priority': 'medium'},
-            'Monster': {'expiry_days': 120, 'priority': 'medium'},
+    
             'Stellenanzeigen': {'expiry_days': 120, 'priority': 'medium'},
             'Meinestadt': {'expiry_days': 120, 'priority': 'low'}
         }
@@ -680,7 +680,7 @@ class JobDetailsCache:
                 'Indeed': '%indeed.com%',
                 'Stepstone': '%stepstone.de%',
                 'Xing': '%xing.com%',
-                'Monster': '%monster.de%',
+        
                 'Stellenanzeigen': '%stellenanzeigen.de%',
                 'Meinestadt': '%meinestadt.de%'
             }

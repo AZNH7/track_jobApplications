@@ -210,7 +210,7 @@ class MainDashboardView(BaseJobTracker):
         st.markdown("### 🎛️ Dashboard Mode")
         dashboard_mode = st.selectbox(
             "Choose Dashboard View",
-            ["📊 Standard Dashboard", "🔍 Enhanced Analytics", "📈 Comprehensive Insights"],
+            ["📊 Standard Dashboard", "🔍 Analytics", "📈 Comprehensive Insights"],
             help="Select the level of detail for your dashboard"
         )
         
@@ -288,7 +288,7 @@ class MainDashboardView(BaseJobTracker):
             # Show different dashboard modes
             if dashboard_mode == "📊 Standard Dashboard":
                 self._show_standard_dashboard(filtered_df, applications_df)
-            elif dashboard_mode == "🔍 Enhanced Analytics":
+            elif dashboard_mode == "🔍 Analytics":
                 self._show_enhanced_dashboard(filtered_df, applications_df)
             else:  # Comprehensive Insights
                 self._show_comprehensive_dashboard(filtered_df, applications_df)
@@ -381,7 +381,7 @@ class MainDashboardView(BaseJobTracker):
         self._show_standard_dashboard(filtered_df, applications_df)
         
         # Enhanced insights
-        st.markdown("### 🔍 Enhanced Insights")
+        st.markdown("### 🔍 Insights")
         
         # Market Intelligence
         self.enhanced_insights.show_market_intelligence(filtered_df, applications_df)

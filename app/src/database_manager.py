@@ -874,8 +874,8 @@ class PostgreSQLManager:
         try:
             query = """
                 DELETE FROM ignored_jobs 
-                WHERE url IN (
-                    SELECT url FROM job_listings 
+                WHERE job_listing_id IN (
+                    SELECT id FROM job_listings 
                     WHERE llm_filtered = true
                 )
             """
@@ -913,6 +913,16 @@ class PostgreSQLManager:
             batch_params = []
             for job in batch:
                 try:
+                    # Handle timestamp fields properly
+                    scraped_date = job.get('scraped_date')
+                    posted_date = job.get('posted_date')
+                    
+                    # Convert empty strings to None for timestamp fields
+                    if scraped_date == '':
+                        scraped_date = None
+                    if posted_date == '':
+                        posted_date = None
+                    
                     batch_params.append((
                         job.get('title', ''),
                         job.get('company', ''),
@@ -920,8 +930,8 @@ class PostgreSQLManager:
                         job.get('salary', ''),
                         job.get('url', ''),
                         job.get('source', ''),
-                        job.get('scraped_date'),
-                        job.get('posted_date'),
+                        scraped_date,
+                        posted_date,
                         job.get('description', ''),
                         job.get('language', ''),
                         job.get('job_snippet', ''),
@@ -1224,12 +1234,22 @@ class PostgreSQLManager:
             with self.get_connection() as conn:
                 with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cursor:
                     # Get applications from applications table
-                    cursor.execute(applications_query, tuple(params))
-                    applications_results = cursor.fetchall()
+                    try:
+                        cursor.execute(applications_query, tuple(params))
+                        applications_results = cursor.fetchall()
+                        self.logger.info(f"Found {len(applications_results)} applications from applications table")
+                    except Exception as e:
+                        self.logger.error(f"Error querying applications table: {e}")
+                        applications_results = []
                     
                     # Get applications from job_applications table
-                    cursor.execute(job_applications_query, tuple(params))
-                    job_applications_results = cursor.fetchall()
+                    try:
+                        cursor.execute(job_applications_query, tuple(params))
+                        job_applications_results = cursor.fetchall()
+                        self.logger.info(f"Found {len(job_applications_results)} applications from job_applications table")
+                    except Exception as e:
+                        self.logger.error(f"Error querying job_applications table: {e}")
+                        job_applications_results = []
 
             # Convert DictRow objects to standard dictionaries
             applications = [dict(row) for row in applications_results]

@@ -377,6 +377,10 @@ class StellenanzeigenScraper(BaseScraper):
             except Exception:
                 continue
         
+        # Fallback: Extract location from URL if not found in HTML
+        if not location:
+            location = self._extract_location_from_url(job_url)
+        
         # Check if this is a remote job search and update location accordingly
         if self._current_search_location and self._current_search_location.lower().strip() in ['remote', 'homeoffice', 'home office', 'work from home', 'wfh']:
             # If we're searching for remote jobs, label the location as remote
@@ -642,8 +646,9 @@ class StellenanzeigenScraper(BaseScraper):
             ]
             company = self._extract_with_multiple_selectors(soup, company_selectors) or "Unknown Company"
             
-            # Location extraction
+            # Location extraction with Stellenanzeigen-specific selectors
             location_selectors = [
+                # Stellenanzeigen-specific selectors
                 'span[class*="location"]',
                 'div[class*="location"]',
                 '[data-testid*="location"]',
@@ -652,9 +657,36 @@ class StellenanzeigenScraper(BaseScraper):
                 '[class*="place"]',
                 '[class*="city"]',
                 '[class*="ort"]',
-                '[class*="standort"]'
+                '[class*="standort"]',
+                # Additional Stellenanzeigen-specific patterns
+                '[class*="job-location"]',
+                '[class*="position-location"]',
+                '[class*="vacancy-location"]',
+                '[class*="arbeitsort"]',
+                '[class*="arbeitsplatz"]',
+                '[class*="standort"]',
+                '[class*="region"]',
+                '[class*="gebiet"]',
+                # German-specific location patterns
+                '[class*="wohnort"]',
+                '[class*="anschrift"]',
+                '[class*="adresse"]',
+                # Generic location indicators
+                'span[class*="geo"]',
+                'div[class*="geo"]',
+                '[itemprop="addressLocality"]',
+                '[itemprop="addressRegion"]',
+                '[itemprop="addressCountry"]'
             ]
-            location = self._extract_with_multiple_selectors(soup, location_selectors) or "Unknown Location"
+            location = self._extract_with_multiple_selectors(soup, location_selectors)
+            
+            # Fallback: Extract location from URL if not found in HTML
+            if not location or location == "Unknown Location":
+                location = self._extract_location_from_url(job_url)
+            
+            # Final fallback
+            if not location:
+                location = "Unknown Location"
             
             # Salary extraction
             salary_selectors = [
@@ -759,6 +791,65 @@ class StellenanzeigenScraper(BaseScraper):
                         return text
             except Exception:
                 continue
+        return ""
+
+    def _extract_location_from_url(self, job_url: str) -> str:
+        """Extract location information from Stellenanzeigen job URL."""
+        try:
+            # Parse URL to extract location information
+            from urllib.parse import urlparse, parse_qs
+            
+            # Check if URL contains location information
+            if 'stellenanzeigen.de' in job_url:
+                # Extract location from URL path or query parameters
+                parsed_url = urlparse(job_url)
+                
+                # Look for location in URL path
+                path_parts = parsed_url.path.split('/')
+                for part in path_parts:
+                    # Check for German city names in URL
+                    german_cities = [
+                        'berlin', 'hamburg', 'münchen', 'munich', 'köln', 'cologne', 
+                        'frankfurt', 'stuttgart', 'düsseldorf', 'dortmund', 'essen',
+                        'leipzig', 'bremen', 'dresden', 'hannover', 'nürnberg', 
+                        'nuremberg', 'duisburg', 'bochum', 'wuppertal', 'bielefeld',
+                        'bonn', 'münster', 'karlsruhe', 'mannheim', 'augsburg',
+                        'wiesbaden', 'gelsenkirchen', 'mönchengladbach', 'braunschweig',
+                        'chemnitz', 'kiel', 'aachen', 'halle', 'magdeburg', 'freiburg',
+                        'krefeld', 'lübeck', 'oberhausen', 'erfurt', 'mainz', 'rostock',
+                        'kassel', 'hagen', 'potsdam', 'saarbrücken', 'hamm', 'mülheim',
+                        'ludwigshafen', 'leverkusen', 'oldenburg', 'osnabrück', 'solingen',
+                        'heidelberg', 'herne', 'neuss', 'darmstadt', 'paderborn',
+                        'regensburg', 'ingolstadt', 'würzburg', 'fürth', 'wolfsburg',
+                        'offenbach', 'ulm', 'heilbronn', 'pforzheim', 'göttingen',
+                        'bottrop', 'trier', 'recklinghausen', 'reutlingen',
+                        'bremerhaven', 'koblenz', 'bergisch', 'gladbach', 'jena',
+                        'remscheid', 'erlangen', 'moers', 'siegen', 'hildesheim',
+                        'salzgitter', 'castrop-rauxel', 'muelheim', 'herxheim'
+                    ]
+                    
+                    if part.lower() in german_cities:
+                        return part.title()
+                
+                # Check query parameters for location IDs
+                query_params = parse_qs(parsed_url.query)
+                if 'locationIds' in query_params:
+                    location_id = query_params['locationIds'][0]
+                    # Map location ID back to city name
+                    reverse_location_map = {v: k for k, v in self.location_map.items()}
+                    if location_id in reverse_location_map:
+                        return reverse_location_map[location_id].title()
+                
+                # Look for location patterns in the URL
+                url_lower = job_url.lower()
+                for city in german_cities:
+                    if city in url_lower:
+                        return city.title()
+        
+        except Exception as e:
+            if self.debug:
+                print(f"   ⚠️ Error extracting location from URL {job_url}: {e}")
+        
         return ""
 
     def _extract_comprehensive_description(self, soup: BeautifulSoup) -> str:

@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class OllamaJobAnalyzer:
     """
-    Ollama-based job analyzer for intelligent job classification, tagging, and CV matching
+    Ollama-based job analyzer for intelligent job classification and tagging
     """
     
     def __init__(self, ollama_host: str = None, model_name: str = None):
@@ -166,119 +166,9 @@ class OllamaJobAnalyzer:
         # Fallback to rule-based analysis
         return self._fallback_analysis(job_title, job_description)
     
-    def score_job_against_cv(self, job_title: str, job_description: str, cv_text: str, 
-                           cv_skills: List[str], company: str = "", salary: str = "") -> Dict[str, Any]:
-        """
-        Score a job posting against a CV using LLM analysis
-        """
-        if not self.available:
-            return self._fallback_cv_scoring(job_title, job_description, cv_text, cv_skills)
-        
-        system_prompt = """You are an expert career counselor and recruiter. Analyze how well a candidate's CV matches a job posting.
-        Always respond in valid JSON format only, no additional text."""
-        
-        # Truncate CV text to avoid token limits
-        cv_summary = cv_text[:1500] if len(cv_text) > 1500 else cv_text
-        
-        prompt = f"""
-        Analyze how well this candidate matches the job posting and provide a JSON response:
-        {{
-            "overall_match_score": 0-100,
-            "skill_match_score": 0-100,
-            "experience_match_score": 0-100,
-            "culture_fit_score": 0-100,
-            "missing_critical_skills": ["skill1", "skill2"],
-            "matching_skills": ["skill1", "skill2"],
-            "experience_gap_years": 0-10,
-            "strengths": ["strength1", "strength2"],
-            "improvement_areas": ["area1", "area2"],
-            "recommendation": "Strong Match/Good Match/Partial Match/Poor Match",
-            "likelihood_of_interview": "High/Medium/Low",
-            "salary_negotiation_position": "Strong/Moderate/Weak",
-            "application_priority": "High/Medium/Low",
-            "cover_letter_focus": ["point1", "point2", "point3"]
-        }}
-        
-        Job Title: {job_title}
-        Company: {company}
-        Salary: {salary if salary else "Not specified"}
-        Job Description: {job_description[:1500]}
-        
-        Candidate CV Summary: {cv_summary}
-        Candidate Skills: {', '.join(cv_skills[:20])}
-        """
-        
-        response = self._call_ollama(prompt, system_prompt, max_tokens=1000)
-        
-        if response:
-            try:
-                analysis = json.loads(response)
-                return analysis if analysis else self._fallback_cv_scoring(job_title, job_description, cv_text, cv_skills)
-            except json.JSONDecodeError:
-                try:
-                    start = response.find('{')
-                    end = response.rfind('}') + 1
-                    if start != -1 and end != 0:
-                        json_str = response[start:end]
-                        analysis = json.loads(json_str)
-                        return analysis if analysis else self._fallback_cv_scoring(job_title, job_description, cv_text, cv_skills)
-                except:
-                    pass
-        
-        return self._fallback_cv_scoring(job_title, job_description, cv_text, cv_skills)
+
     
-    def generate_application_insights(self, job_analysis: Dict, cv_scoring: Dict, 
-                                    job_title: str, company: str) -> Dict[str, Any]:
-        """
-        Generate personalized application insights and recommendations
-        """
-        if not self.available:
-            return self._fallback_insights(job_analysis, cv_scoring)
-        
-        system_prompt = """You are a career coach providing personalized job application advice.
-        Always respond in valid JSON format only, no additional text."""
-        
-        prompt = f"""
-        Based on the job analysis and CV scoring, provide application insights in JSON format:
-        {{
-            "application_strategy": "strategy description",
-            "cover_letter_key_points": ["point1", "point2", "point3"],
-            "interview_preparation_focus": ["area1", "area2", "area3"],
-            "questions_to_ask_interviewer": ["question1", "question2"],
-            "salary_negotiation_tips": ["tip1", "tip2"],
-            "timeline_recommendation": "Apply immediately/Within 1 week/Within 2 weeks/Skip",
-            "networking_opportunities": ["opportunity1", "opportunity2"],
-            "skill_development_priorities": ["skill1", "skill2"],
-            "confidence_boosters": ["booster1", "booster2"],
-            "potential_concerns": ["concern1", "concern2"]
-        }}
-        
-        Job: {job_title} at {company}
-        Job Quality Score: {job_analysis.get('overall_quality_score', 'N/A')}
-        Match Score: {cv_scoring.get('overall_match_score', 'N/A')}
-        Recommendation: {cv_scoring.get('recommendation', 'N/A')}
-        Missing Skills: {', '.join(cv_scoring.get('missing_critical_skills', []))}
-        Strengths: {', '.join(cv_scoring.get('strengths', []))}
-        """
-        
-        response = self._call_ollama(prompt, system_prompt, max_tokens=800)
-        
-        if response:
-            try:
-                insights = json.loads(response)
-                return insights if insights else self._fallback_insights(job_analysis, cv_scoring)
-            except json.JSONDecodeError:
-                try:
-                    start = response.find('{')
-                    end = response.rfind('}') + 1
-                    if start != -1 and end != 0:
-                        json_str = response[start:end]
-                        insights = json.loads(json_str)
-                        return insights if insights else self._fallback_insights(job_analysis, cv_scoring)
-                except:
-                    pass
-        
-        return self._fallback_insights(job_analysis, cv_scoring)
+
     
     def _fallback_analysis(self, job_title: str, job_description: str) -> Dict[str, Any]:
         """Fallback rule-based job analysis when LLM is not available"""
@@ -324,55 +214,14 @@ class OllamaJobAnalyzer:
             'tags': [job_category.lower().replace(' ', '_')]
         }
     
-    def _fallback_cv_scoring(self, job_title: str, job_description: str, 
-                           cv_text: str, cv_skills: List[str]) -> Dict[str, Any]:
-        """Fallback CV scoring when LLM is not available"""
-        # Simple keyword matching
-        desc_lower = job_description.lower()
-        cv_lower = cv_text.lower()
-        
-        matching_skills = [skill for skill in cv_skills if skill.lower() in desc_lower]
-        skill_match_percentage = (len(matching_skills) / max(len(cv_skills), 1)) * 100
-        
-        return {
-            'overall_match_score': min(skill_match_percentage, 100),
-            'skill_match_score': skill_match_percentage,
-            'experience_match_score': 70,  # Default assumption
-            'culture_fit_score': 60,
-            'missing_critical_skills': [],
-            'matching_skills': matching_skills,
-            'experience_gap_years': 0,
-            'strengths': ['Relevant skills'],
-            'improvement_areas': ['Skill development'],
-            'recommendation': 'Good Match' if skill_match_percentage > 50 else 'Partial Match',
-            'likelihood_of_interview': 'Medium',
-            'salary_negotiation_position': 'Moderate',
-            'application_priority': 'Medium',
-            'cover_letter_focus': ['Highlight relevant experience']
-        }
+
     
-    def _fallback_insights(self, job_analysis: Dict, cv_scoring: Dict) -> Dict[str, Any]:
-        """Fallback insights when LLM is not available"""
-        return {
-            'application_strategy': 'Focus on highlighting relevant skills and experience',
-            'cover_letter_key_points': ['Match your skills to job requirements', 'Show enthusiasm for the role'],
-            'interview_preparation_focus': ['Technical skills', 'Company research'],
-            'questions_to_ask_interviewer': ['What does success look like in this role?'],
-            'salary_negotiation_tips': ['Research market rates', 'Highlight unique value'],
-            'timeline_recommendation': 'Within 1 week',
-            'networking_opportunities': ['LinkedIn connections', 'Industry events'],
-            'skill_development_priorities': ['Core technical skills'],
-            'confidence_boosters': ['Relevant experience', 'Transferable skills'],
-            'potential_concerns': ['Competition', 'Skill gaps']
-        }
+
     
-    def batch_analyze_jobs(self, jobs: List[Dict], cv_text: str = "", cv_skills: List[str] = None) -> List[Dict]:
+    def batch_analyze_jobs(self, jobs: List[Dict]) -> List[Dict]:
         """
         Analyze multiple jobs in batch for efficiency
         """
-        if cv_skills is None:
-            cv_skills = []
-            
         analyzed_jobs = []
         
         for job in jobs:
@@ -384,22 +233,10 @@ class OllamaJobAnalyzer:
                     job.get('company', '')
                 )
                 
-                # CV scoring if CV is provided
-                cv_scoring = {}
-                if cv_text:
-                    cv_scoring = self.score_job_against_cv(
-                        job.get('title', ''),
-                        job.get('description', ''),
-                        cv_text,
-                        cv_skills,
-                        job.get('company', '')
-                    )
-                
                 # Combine original job data with analysis
                 analyzed_job = {
                     **job,
                     'llm_analysis': job_analysis,
-                    'cv_scoring': cv_scoring,
                     'analysis_timestamp': datetime.now().isoformat()
                 }
                 
@@ -414,20 +251,15 @@ class OllamaJobAnalyzer:
                 analyzed_jobs.append({
                     **job,
                     'llm_analysis': self._fallback_analysis(job.get('title', ''), job.get('description', '')),
-                    'cv_scoring': {},
                     'analysis_error': str(e)
                 })
         
         return analyzed_jobs 
 
-    def batch_analyze_jobs_optimized(self, jobs: List[Dict], cv_text: str = "", cv_skills: List[str] = None, 
-                                    max_workers: int = 4, skip_analysis: bool = False) -> List[Dict]:
+    def batch_analyze_jobs_optimized(self, jobs: List[Dict], max_workers: int = 4, skip_analysis: bool = False) -> List[Dict]:
         """
         Optimized batch job analysis with parallel processing and optional skipping
         """
-        if cv_skills is None:
-            cv_skills = []
-            
         if skip_analysis:
             # Skip analysis for speed - just add basic metadata
             analyzed_jobs = []
@@ -435,7 +267,6 @@ class OllamaJobAnalyzer:
                 analyzed_job = {
                     **job,
                     'llm_analysis': self._fallback_analysis(job.get('title', ''), job.get('description', '')),
-                    'cv_scoring': {},
                     'analysis_skipped': True,
                     'analysis_timestamp': datetime.now().isoformat()
                 }
@@ -447,7 +278,7 @@ class OllamaJobAnalyzer:
         # Process jobs in parallel for better performance
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_job = {
-                executor.submit(self._analyze_single_job, job, cv_text, cv_skills): job 
+                executor.submit(self._analyze_single_job, job): job 
                 for job in jobs
             }
             
@@ -462,14 +293,13 @@ class OllamaJobAnalyzer:
                     analyzed_jobs.append({
                         **original_job,
                         'llm_analysis': self._fallback_analysis(original_job.get('title', ''), original_job.get('description', '')),
-                        'cv_scoring': {},
                         'analysis_error': str(e),
                         'analysis_timestamp': datetime.now().isoformat()
                     })
         
         return analyzed_jobs
     
-    def _analyze_single_job(self, job: Dict, cv_text: str, cv_skills: List[str]) -> Dict:
+    def _analyze_single_job(self, job: Dict) -> Dict:
         """Analyze a single job with error handling"""
         try:
             # Basic job analysis
@@ -479,22 +309,10 @@ class OllamaJobAnalyzer:
                 job.get('company', '')
             )
             
-            # CV scoring if CV is provided
-            cv_scoring = {}
-            if cv_text:
-                cv_scoring = self.score_job_against_cv(
-                    job.get('title', ''),
-                    job.get('description', ''),
-                    cv_text,
-                    cv_skills,
-                    job.get('company', '')
-                )
-            
             # Combine original job data with analysis
             analyzed_job = {
                 **job,
                 'llm_analysis': job_analysis,
-                'cv_scoring': cv_scoring,
                 'analysis_timestamp': datetime.now().isoformat()
             }
             
@@ -506,17 +324,16 @@ class OllamaJobAnalyzer:
             return {
                 **job,
                 'llm_analysis': self._fallback_analysis(job.get('title', ''), job.get('description', '')),
-                'cv_scoring': {},
                 'analysis_error': str(e),
                 'analysis_timestamp': datetime.now().isoformat()
             }
     
-    def analyze_jobs_async(self, jobs: List[Dict], cv_text: str = "", cv_skills: List[str] = None) -> List[Dict]:
+    def analyze_jobs_async(self, jobs: List[Dict]) -> List[Dict]:
         """
         Asynchronous job analysis that can be run separately from search
         """
         if not self.available:
             self.logger.warning("LLM not available, using fallback analysis")
-            return self.batch_analyze_jobs_optimized(jobs, cv_text, cv_skills, skip_analysis=True)
+            return self.batch_analyze_jobs_optimized(jobs, skip_analysis=True)
         
-        return self.batch_analyze_jobs_optimized(jobs, cv_text, cv_skills, max_workers=4) 
+        return self.batch_analyze_jobs_optimized(jobs, max_workers=4) 
