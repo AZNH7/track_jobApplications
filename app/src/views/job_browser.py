@@ -32,37 +32,7 @@ class JobBrowserView(BaseView):
         """Show the job browser interface."""
         st.markdown("# 🔍 Job Browser")
         st.markdown("Browse all discovered jobs with AI-enhanced insights and management tools.")
-        
-        # Add a debug section to show current status
-        with st.expander("🔧 Debug Information", expanded=False):
-            try:
-                # Quick database stats
-                total_query = "SELECT COUNT(*) FROM job_listings"
-                total_result = self.db_manager.execute_query(total_query, fetch='one')
-                total_jobs = total_result[0] if total_result else 0
-                
-                recent_query = "SELECT COUNT(*) FROM job_listings WHERE scraped_date >= %s"
-                recent_result = self.db_manager.execute_query(recent_query, (datetime.now() - timedelta(days=1),), fetch='one')
-                recent_jobs = recent_result[0] if recent_result else 0
-                
-                st.write(f"**Database Status:**")
-                st.write(f"- Total jobs in database: {total_jobs}")
-                st.write(f"- Jobs from last 24 hours: {recent_jobs}")
-                
-                # Show current filters
-                current_filters = st.session_state.get('job_browser_filters', {})
-                st.write(f"**Current Filters:** {current_filters}")
-                
-                # Test location functionality
-                locations = self._get_all_locations()
-                st.write(f"**Location Test:**")
-                st.write(f"- Found {len(locations)} locations in database")
-                if locations:
-                    st.write(f"- Sample locations: {locations[:5]}")
-                
-            except Exception as e:
-                st.write(f"Debug error: {e}")
-        
+    
         # Filters and controls
         self._show_filters()
         

@@ -8,10 +8,10 @@ services:
       dockerfile: app/Dockerfile
       args:
         - BUILDKIT_INLINE_CACHE=0
-    container_name: job-tracker-app
+    container_name: track_jobapplication-app
     # Use networks instead of host mode for better cross-platform compatibility
     networks:
-      - job-tracker-network
+      - track_jobapplication-network
     # env_file:
     #   - ../.env
     environment:
@@ -31,7 +31,7 @@ services:
       - STREAMLIT_LAYOUT_WIDE=true
       - STREAMLIT_THEME_BASE=light
     ports:
-      - "8501:8501"
+      - "8502:8501"
     volumes:
       - ../shared:/app/shared
       # - ./src:/app/src  # Commented out to use built-in src from Docker image
@@ -53,18 +53,18 @@ services:
   # Database Service
   postgres:
     image: postgres:16
-    container_name: job-tracker-postgres
+    container_name: track_jobapplication-postgres
     environment:
       - POSTGRES_DB=${POSTGRES_DB:-jobtracker}
       - POSTGRES_USER=${POSTGRES_USER:-jobtracker}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-jobtracker_password}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - track_jobapplication_postgres_data:/var/lib/postgresql/data
       - ../shared/postgres-init:/docker-entrypoint-initdb.d
     ports:
-      - "5432:5432"
+      - "5433:5432"
     networks:
-      - job-tracker-network
+      - track_jobapplication-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U jobtracker -d jobtracker"]
@@ -75,14 +75,14 @@ services:
   # Redis Cache Service
   redis:
     image: redis:7-alpine
-    container_name: job-tracker-redis
+    container_name: track_jobapplication-redis
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     ports:
-      - "6379:6379"
+      - "6380:6379"
     volumes:
-      - redis_data:/data
+      - track_jobapplication_redis_data:/data
     networks:
-      - job-tracker-network
+      - track_jobapplication-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -92,11 +92,11 @@ services:
 
   flaresolverr-1:
     image: 21hsmw/flaresolverr:nodriver
-    container_name: job-tracker-flaresolverr-1
+    container_name: track_jobapplication-flaresolverr-1
     ports:
-      - "8191:8191"
+      - "8196:8191"
     networks:
-      - job-tracker-network
+      - track_jobapplication-network
     restart: unless-stopped
     environment:
       - LOG_LEVEL=info
@@ -106,11 +106,11 @@ services:
 
   flaresolverr-2:
     image: 21hsmw/flaresolverr:nodriver
-    container_name: job-tracker-flaresolverr-2
+    container_name: track_jobapplication-flaresolverr-2
     ports:
-      - "8192:8191"
+      - "8197:8191"
     networks:
-      - job-tracker-network
+      - track_jobapplication-network
     restart: unless-stopped
     environment:
       - LOG_LEVEL=info
@@ -120,11 +120,11 @@ services:
 
   flaresolverr-3:
     image: 21hsmw/flaresolverr:nodriver
-    container_name: job-tracker-flaresolverr-3
+    container_name: track_jobapplication-flaresolverr-3
     ports:
-      - "8193:8191"
+      - "8198:8191"
     networks:
-      - job-tracker-network
+      - track_jobapplication-network
     restart: unless-stopped
     environment:
       - LOG_LEVEL=info
@@ -134,11 +134,11 @@ services:
 
   flaresolverr-4:
     image: 21hsmw/flaresolverr:nodriver
-    container_name: job-tracker-flaresolverr-4
+    container_name: track_jobapplication-flaresolverr-4
     ports:
-      - "8194:8191"
+      - "8199:8191"
     networks:
-      - job-tracker-network
+      - track_jobapplication-network
     restart: unless-stopped
     environment:
       - LOG_LEVEL=info
@@ -148,11 +148,11 @@ services:
 
   flaresolverr-5:
     image: 21hsmw/flaresolverr:nodriver
-    container_name: job-tracker-flaresolverr-5
+    container_name: track_jobapplication-flaresolverr-5
     ports:
-      - "8195:8191"
+      - "8200:8191"
     networks:
-      - job-tracker-network
+      - track_jobapplication-network
     restart: unless-stopped
     environment:
       - LOG_LEVEL=info
@@ -162,14 +162,14 @@ services:
 
   flaresolverr-balancer:
     image: nginx:alpine
-    container_name: job-tracker-flaresolverr-balancer
+    container_name: track_jobapplication-flaresolverr-balancer
     volumes:
       - ./nginx-flaresolverr.conf:/etc/nginx/nginx.conf:ro
       - ./disable-ipv6.sh:/disable-ipv6.sh:ro
     ports:
-      - "8190:8190"
+      - "8201:8190"
     networks:
-      - job-tracker-network
+      - track_jobapplication-network
     environment:
       - NGINX_DISABLE_IPV6=true
     entrypoint: ["/bin/sh", "/disable-ipv6.sh"]
@@ -181,9 +181,9 @@ services:
       - flaresolverr-5
 
 volumes:
-  postgres_data:
-  redis_data:
+  track_jobapplication_postgres_data:
+  track_jobapplication_redis_data:
 
 networks:
-  job-tracker-network:
+  track_jobapplication-network:
     driver: bridge
