@@ -363,6 +363,7 @@ OLLAMA_HOST="http://host.docker.internal:11434"
 - ✅ Duplicate detection
 - ✅ FlareSolverr Cloudflare bypass
 - ✅ PostgreSQL data storage
+
 ### Streamlit-Specific
 - 📈 Interactive data visualizations
 - 🎯 Real-time job filtering
@@ -581,5 +582,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Streamlit for the amazing web framework
 - Docker for containerization
 - Ollama for local AI capabilities (runs on host machine)
-- All the open-source libraries that make this project possible
-
