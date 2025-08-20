@@ -583,5 +583,3 @@ class JobOffersView(BaseJobTracker):
                     continue
         else:
             st.info("No offers found. Add your first offer using the form above.") 
-        else:
-            st.info("No offers found. Add your first offer using the form above.") 
