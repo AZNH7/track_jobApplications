@@ -72,9 +72,241 @@ docker-compose -f app/docker-compose.yml up --build
 - **Ollama** ([Download](https://ollama.ai/)) - Runs on your host machine (not in Docker)
 - **8GB+ RAM** - For running AI models on your local machine
 
-## 🔧 Configuration
+## 🖥️ Platform-Specific Setup Instructions
 
-### 📄 Environment Setup
+### 🪟 Windows Users
+
+#### Prerequisites Installation
+1. **Install Docker Desktop for Windows**
+   - Download from [Docker Desktop](https://docs.docker.com/desktop/windows/)
+   - Enable WSL 2 backend (recommended) or Hyper-V
+   - Ensure virtualization is enabled in BIOS
+   - Restart your computer after installation
+
+2. **Install Git for Windows**
+   - Download from [Git for Windows](https://git-scm.com/download/win)
+   - Use default settings during installation
+   - Add Git to PATH when prompted
+
+3. **Install Ollama (Optional - for AI features)**
+   - Download from [Ollama](https://ollama.ai/)
+   - Run the installer as administrator
+   - Ollama will start automatically on boot
+
+#### Getting Started
+1. **Open Command Prompt or PowerShell**
+   ```cmd
+   # Clone the repository
+   git clone https://your-repository-url.com/job-tracker.git
+   cd job-tracker
+   ```
+
+2. **Start the Application**
+   ```cmd
+   # Option 1: Use the start script (if available)
+   start.sh
+
+   # Option 2: Manual Docker Compose
+   docker-compose -f app/docker-compose.yml up --build
+   ```
+
+3. **Access the Application**
+   - Open your web browser
+   - Navigate to `http://localhost:8501`
+
+#### Windows-Specific Notes
+- **WSL 2**: Recommended for better Docker performance
+- **Antivirus**: May need to whitelist Docker and the application directory
+- **Firewall**: Allow Docker through Windows Firewall when prompted
+- **Path Issues**: Use forward slashes `/` or escaped backslashes `\\` in paths
+
+### 🍎 macOS Users
+
+#### Prerequisites Installation
+1. **Install Docker Desktop for Mac**
+   - Download from [Docker Desktop](https://docs.docker.com/desktop/mac/)
+   - Drag to Applications folder and launch
+   - Grant necessary permissions when prompted
+
+2. **Install Git**
+   ```bash
+   # Using Homebrew (recommended)
+   brew install git
+
+   # Or download from https://git-scm.com/download/mac
+   ```
+
+3. **Install Ollama (Optional - for AI features)**
+   ```bash
+   # Using Homebrew
+   brew install ollama
+
+   # Or download from https://ollama.ai/
+   ```
+
+#### Getting Started
+1. **Open Terminal**
+   ```bash
+   # Clone the repository
+   git clone https://your-repository-url.com/job-tracker.git
+   cd job-tracker
+   ```
+
+2. **Start the Application**
+   ```bash
+   # Option 1: Use the start script
+   chmod +x start.sh
+   ./start.sh
+
+   # Option 2: Manual Docker Compose
+   docker-compose -f app/docker-compose.yml up --build
+   ```
+
+3. **Access the Application**
+   - Open Safari, Chrome, or Firefox
+   - Navigate to `http://localhost:8501`
+
+#### macOS-Specific Notes
+- **Permissions**: Grant Docker necessary permissions in System Preferences
+- **M1/M2 Macs**: Docker Desktop supports ARM64 architecture natively
+- **File Sharing**: Ensure the project directory is shared with Docker Desktop
+- **Terminal**: Use Terminal.app or iTerm2 for better experience
+
+### 🐧 Linux Users
+
+#### Prerequisites Installation
+
+**Ubuntu/Debian:**
+```bash
+# Update package list
+sudo apt update
+
+# Install Docker
+sudo apt install docker.io docker-compose
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo usermod -aG docker $USER
+
+# Install Git
+sudo apt install git
+
+# Install Ollama (Optional - for AI features)
+curl -fsSL https://ollama.ai/install.sh | sh
+```
+
+**Fedora/RHEL/CentOS:**
+```bash
+# Install Docker
+sudo dnf install docker docker-compose
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo usermod -aG docker $USER
+
+# Install Git
+sudo dnf install git
+
+# Install Ollama (Optional - for AI features)
+curl -fsSL https://ollama.ai/install.sh | sh
+```
+
+**Arch Linux:**
+```bash
+# Install Docker
+sudo pacman -S docker docker-compose
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo usermod -aG docker $USER
+
+# Install Git
+sudo pacman -S git
+
+# Install Ollama (Optional - for AI features)
+curl -fsSL https://ollama.ai/install.sh | sh
+```
+
+#### Getting Started
+1. **Open Terminal**
+   ```bash
+   # Clone the repository
+   git clone https://your-repository-url.com/job-tracker.git
+   cd job-tracker
+   ```
+
+2. **Start the Application**
+   ```bash
+   # Option 1: Use the start script
+   chmod +x start.sh
+   ./start.sh
+
+   # Option 2: Manual Docker Compose
+   docker-compose -f app/docker-compose.yml up --build
+   ```
+
+3. **Access the Application**
+   - Open your preferred browser
+   - Navigate to `http://localhost:8501`
+
+#### Linux-Specific Notes
+- **User Groups**: Log out and back in after adding user to docker group
+- **SELinux**: May need to configure SELinux policies for Docker
+- **Firewall**: Configure firewall rules if needed (usually not required for localhost)
+- **Display**: For headless servers, use SSH tunneling or VNC
+
+### 🔧 Troubleshooting by Platform
+
+#### Windows Issues
+```cmd
+# Docker not starting
+# Check Windows features: Enable Hyper-V and Windows Subsystem for Linux
+
+# Permission denied
+# Run Command Prompt as Administrator
+
+# Port already in use
+netstat -ano | findstr :8501
+taskkill /PID <PID> /F
+```
+
+#### macOS Issues
+```bash
+# Docker permission denied
+sudo chown $USER:$USER ~/.docker
+
+# Port conflicts
+lsof -ti:8501 | xargs kill -9
+
+# Memory issues
+# Increase Docker Desktop memory limit in Preferences
+```
+
+#### Linux Issues
+```bash
+# Docker permission denied
+sudo usermod -aG docker $USER
+# Log out and back in
+
+# Port already in use
+sudo lsof -ti:8501 | xargs kill -9
+
+# SELinux issues
+sudo setsebool -P container_manage_cgroup 1
+```
+
+### 🚀 Quick Start Commands
+
+**All Platforms:**
+```bash
+# 1. Clone and enter directory
+git clone https://your-repository-url.com/job-tracker.git
+cd job-tracker
+
+# 2. Start application
+docker-compose -f app/docker-compose.yml up --build
+
+# 3. Open browser to http://localhost:8501
+```
+
+## 🔧 Configuration
 Copy `app/env.template` to `.env` and configure:
 
 ```bash
