@@ -64,9 +64,30 @@ class SettingsView(BaseView):
 
         if self.config_manager.save_config():
             st.success("Settings saved successfully!")
+            
+            # Reload configuration and clear session state for components that need to be reinitialized
+            self.config_manager.reload_config()
+            self._clear_ollama_components()
+            
             st.experimental_rerun()
         else:
             st.error("Failed to save settings.")
+
+    def _clear_ollama_components(self):
+        """Clear session state for Ollama components so they get reinitialized with new settings."""
+        # Clear components that depend on Ollama configuration
+        if 'ollama_analyzer' in st.session_state:
+            del st.session_state.ollama_analyzer
+        
+        if 'enhanced_processor' in st.session_state:
+            del st.session_state.enhanced_processor
+        
+        # Reinitialize the Ollama client with new settings
+        try:
+            from ollama_client import reinitialize_ollama_client
+            reinitialize_ollama_client()
+        except ImportError:
+            pass
 
     def _display_job_search_settings(self):
         """Display job search settings."""
@@ -109,10 +130,97 @@ class SettingsView(BaseView):
         llm_config = self.config_manager.get_setting('llm', {})
         st.checkbox("Enable Ollama", value=llm_config.get('enable_ollama', True), key="enable_ollama")
         st.text_input("Ollama Host", value=llm_config.get('ollama_host', ''), key="ollama_host")
-        st.text_input("Ollama Model", value=llm_config.get('ollama_model', ''), key="ollama_model")
+        
+        # Enhanced Ollama Model selection with available models
+        current_model = llm_config.get('ollama_model', 'llama3:8b')
+        
+        # Get available models from Ollama if possible
+        available_models = self._get_available_ollama_models()
+        
+        if available_models:
+            selected_model = st.selectbox(
+                "Ollama Model",
+                options=available_models,
+                index=available_models.index(current_model) if current_model in available_models else 0,
+                key="ollama_model",
+                help="Select the AI model to use for job analysis and insights"
+            )
+        else:
+            selected_model = st.text_input(
+                "Ollama Model", 
+                value=current_model, 
+                key="ollama_model",
+                help="Enter the model name (e.g., llama3.2:latest, llama3:8b, qwen2.5:14b)"
+            )
+        
+        # Show warning if model changed
+        if selected_model != current_model:
+            st.warning(f"⚠️ Model changed from '{current_model}' to '{selected_model}'. Click 'Save Settings' to apply the change.")
+        
         st.number_input("Ollama Timeout", value=llm_config.get('ollama_timeout', 300), key="ollama_timeout")
+        
+        # Show Ollama connection status
+        self._display_ollama_status()
 
         db_config = self.config_manager.get_setting('database', {})
         st.text_input("Database Host", value=db_config.get('host', ''), key="db_host")
         st.text_input("Database User", value=db_config.get('user', ''), key="db_user")
         st.text_input("Database Password", value=db_config.get('password', ''), key="db_password", type="password")
+
+    def _get_available_ollama_models(self):
+        """Get list of available Ollama models."""
+        try:
+            import requests
+            from ollama_client import ollama_client
+            
+            if ollama_client.available:
+                models_response = ollama_client.get_models()
+                if models_response and 'models' in models_response:
+                    return [model['name'] for model in models_response['models']]
+        except Exception as e:
+            st.warning(f"Could not fetch available models: {e}")
+        
+        # Fallback to common models
+        return [
+            'llama3.2:latest',
+            'llama3:8b', 
+            'qwen2.5:14b',
+            'gpt-oss:latest',
+            'deepseek-r1:latest',
+            'mistral:7b',
+            'codellama:7b',
+            'gemma:7b',
+            'phi:latest'
+        ]
+
+    def _display_ollama_status(self):
+        """Display Ollama connection status and available models."""
+        st.subheader("🤖 Ollama Status")
+        
+        try:
+            from ollama_client import ollama_client
+            
+            if ollama_client.available:
+                st.success("✅ Ollama is connected and available")
+                
+                # Show current model info
+                current_model = self.config_manager.get_setting('llm', {}).get('ollama_model', 'llama3:8b')
+                st.info(f"📋 Current model: {current_model}")
+                
+                # Show available models
+                models_response = ollama_client.get_models()
+                if models_response and 'models' in models_response:
+                    model_names = [model['name'] for model in models_response['models']]
+                    st.write(f"📚 Available models ({len(model_names)}):")
+                    for model in model_names:
+                        st.write(f"   • {model}")
+                else:
+                    st.warning("⚠️ Could not fetch available models")
+            else:
+                st.error("❌ Ollama is not available")
+                st.info("💡 Make sure Ollama is running on your host machine at the configured host URL")
+                
+        except ImportError:
+            st.error("❌ Ollama client not available")
+        except Exception as e:
+            st.error(f"❌ Error checking Ollama status: {e}")

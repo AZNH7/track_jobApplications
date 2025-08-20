@@ -186,4 +186,13 @@ class OllamaClient:
             return False
 
 # Create a singleton instance
-ollama_client = OllamaClient() 
+ollama_client = OllamaClient()
+
+def reinitialize_ollama_client():
+    """Reinitialize the Ollama client with updated settings."""
+    global ollama_client
+    # Clear the singleton instance
+    OllamaClient._instance = None
+    # Create a new instance
+    ollama_client = OllamaClient()
+    return ollama_client 

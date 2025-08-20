@@ -74,9 +74,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+# Configure pip for better reliability (after Python is installed)
+RUN pip3 config set global.timeout 300 && \
+    pip3 config set global.retries 3
+
 # Copy requirements and install remaining Python dependencies via pip
 COPY app/requirements.txt .
-RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+
+# Install Python dependencies with retry logic and increased timeout
+RUN pip3 install --upgrade pip && \
+    pip3 install --no-cache-dir --break-system-packages --timeout 300 --retries 3 -r requirements.txt || \
+    (echo "First attempt failed, retrying with longer timeout..." && \
+     pip3 install --no-cache-dir --break-system-packages --timeout 600 --retries 5 -r requirements.txt)
 
 # Copy application code (always copy fresh to ensure updates)
 COPY app/ .
