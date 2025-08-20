@@ -71,17 +71,6 @@ class EnhancedJobProcessor:
         except Exception as e:
             self.logger.error(f"Ollama connection test failed: {e}")
     
-
-
-
-
-
-
-    
-
-    
-
-    
     def _call_ollama(self, prompt: str, system_prompt: str = "", max_tokens: int = 1000) -> Optional[str]:
         """Make a call to Ollama API"""
         if not self.available:
@@ -148,8 +137,6 @@ class EnhancedJobProcessor:
             source = ''
         
         system_prompt = """You are an expert HR analyst and job market specialist. Analyze job postings comprehensively using AI-powered analysis for ALL aspects including filtering, labeling, and classification. Always respond in valid JSON format only."""
-        
-
         
         prompt = f"""
         Analyze this job posting comprehensively and provide detailed insights in JSON format. Use AI analysis for ALL aspects - do not rely on simple keyword matching or code-based rules. Analyze the full context and meaning.
