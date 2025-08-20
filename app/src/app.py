@@ -70,8 +70,6 @@ def main():
                 "📊 Job Browser",
                 "📝 Job Offers",
                 "📄 Applications",
-        
-                "📈 Performance",
                 "🛠️ Data Management",
                 "🔧 Platform Config",
                 "⚙️ Settings"
@@ -114,12 +112,6 @@ def main():
             from views.applications import ApplicationsView
             applications_view = ApplicationsView()
             applications_view.show()
-            
-        
-            
-        elif page == "📈 Performance":
-            # This section is not yet implemented, so we'll just show a placeholder
-            st.info("Performance insights page is under construction.")
             
         elif page == "🛠️ Data Management":
             from views.data_management import DataManagementView
