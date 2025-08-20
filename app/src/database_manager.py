@@ -772,7 +772,8 @@ class PostgreSQLManager:
                 status VARCHAR(50) DEFAULT 'active',
                 notes TEXT,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                application_id INTEGER REFERENCES applications(id) ON DELETE SET NULL
+                application_id INTEGER,
+                table_source VARCHAR(50) DEFAULT 'applications'
             )
         ''')
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_offer_status ON job_offers(status)")

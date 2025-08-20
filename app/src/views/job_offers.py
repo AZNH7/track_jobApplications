@@ -19,6 +19,13 @@ class JobOffersView(BaseJobTracker):
     def _ensure_job_offers_table(self):
         """Create job_offers table if it doesn't exist"""
         try:
+            # Drop the existing table if it has the problematic foreign key constraint
+            try:
+                self.db_manager.execute_query("DROP TABLE IF EXISTS job_offers CASCADE")
+            except Exception:
+                pass
+            
+            # Create the table without foreign key constraint
             create_table_query = """
             CREATE TABLE IF NOT EXISTS job_offers (
                 id SERIAL PRIMARY KEY,
@@ -33,10 +40,16 @@ class JobOffersView(BaseJobTracker):
                 notes TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 application_id INTEGER,
-                FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE SET NULL
+                table_source VARCHAR(50) DEFAULT 'applications'
             )
             """
             self.db_manager.execute_query(create_table_query)
+            
+            # Create indexes for better performance
+            self.db_manager.execute_query("CREATE INDEX IF NOT EXISTS idx_job_offers_application_id ON job_offers(application_id)")
+            self.db_manager.execute_query("CREATE INDEX IF NOT EXISTS idx_job_offers_table_source ON job_offers(table_source)")
+            self.db_manager.execute_query("CREATE INDEX IF NOT EXISTS idx_job_offers_status ON job_offers(status)")
+                
         except Exception as e:
             st.error(f"Error creating job_offers table: {str(e)}")
     
@@ -149,9 +162,9 @@ class JobOffersView(BaseJobTracker):
         try:
             query = """
             SELECT id FROM job_offers 
-            WHERE application_id = %s
+            WHERE application_id = %s AND table_source = %s
             """
-            result = self.db_manager.execute_query(query, (application_id,), fetch='one')
+            result = self.db_manager.execute_query(query, (application_id, table_source), fetch='one')
             return result is not None
         except Exception:
             return False
@@ -188,16 +201,17 @@ class JobOffersView(BaseJobTracker):
                 'created_at': datetime.now(),
                 'status': 'active',
                 'notes': details.get('notes', '') or app_result[2] or '',  # Combine with original notes
-                'application_id': application_id
+                'application_id': application_id,
+                'table_source': table_source
             }
             
             query = """
             INSERT INTO job_offers (
                 company, role, base_salary, bonus, benefits, 
-                location, remote_policy, created_at, status, notes, application_id
+                location, remote_policy, created_at, status, notes, application_id, table_source
             ) VALUES (
                 %(company)s, %(role)s, %(base_salary)s, %(bonus)s, %(benefits)s,
-                %(location)s, %(remote_policy)s, %(created_at)s, %(status)s, %(notes)s, %(application_id)s
+                %(location)s, %(remote_policy)s, %(created_at)s, %(status)s, %(notes)s, %(application_id)s, %(table_source)s
             )
             """
             self.db_manager.execute_query(query, offer_data)
@@ -304,6 +318,31 @@ class JobOffersView(BaseJobTracker):
             st.error(f"Error updating offer: {str(e)}")
             return False
     
+    def update_application_status(self, application_id: int, table_source: str, status: str):
+        """Update application status in the original table"""
+        try:
+            if table_source == 'applications':
+                query = """
+                UPDATE applications 
+                SET status = %(status)s, last_updated = CURRENT_TIMESTAMP
+                WHERE id = %(application_id)s
+                """
+            else:  # job_applications
+                query = """
+                UPDATE job_applications 
+                SET status = %(status)s, last_updated = CURRENT_TIMESTAMP
+                WHERE id = %(application_id)s
+                """
+            
+            self.db_manager.execute_query(query, {
+                'application_id': application_id,
+                'status': status
+            })
+            return True
+        except Exception as e:
+            st.error(f"Error updating application status: {str(e)}")
+            return False
+    
     def get_offers(self, status: str = None) -> pd.DataFrame:
         """Get job offers with optional status filter"""
         try:
@@ -316,14 +355,48 @@ class JobOffersView(BaseJobTracker):
             
             if result:
                 # Convert result to list of dictionaries with proper column names
-                columns = ['id', 'company', 'role', 'base_salary', 'bonus', 'benefits', 'location', 'remote_policy', 'status', 'notes', 'created_at', 'application_id']
+                columns = ['id', 'company', 'role', 'base_salary', 'bonus', 'benefits', 'location', 'remote_policy', 'status', 'notes', 'created_at', 'application_id', 'table_source']
                 df = pd.DataFrame(result, columns=columns)
                 return df
             else:
-                return pd.DataFrame(columns=['id', 'company', 'role', 'base_salary', 'bonus', 'benefits', 'location', 'remote_policy', 'status', 'notes', 'created_at', 'application_id'])
+                return pd.DataFrame(columns=['id', 'company', 'role', 'base_salary', 'bonus', 'benefits', 'location', 'remote_policy', 'status', 'notes', 'created_at', 'application_id', 'table_source'])
         except Exception as e:
             st.error(f"Error fetching offers: {str(e)}")
-            return pd.DataFrame(columns=['id', 'company', 'role', 'base_salary', 'bonus', 'benefits', 'location', 'remote_policy', 'status', 'notes', 'created_at', 'application_id'])
+            return pd.DataFrame(columns=['id', 'company', 'role', 'base_salary', 'bonus', 'benefits', 'location', 'remote_policy', 'status', 'notes', 'created_at', 'application_id', 'table_source'])
+    
+    def get_applications_by_status(self, status: str = None) -> pd.DataFrame:
+        """Get applications with optional status filter"""
+        try:
+            if status:
+                query = """
+                SELECT 
+                    id, company, position_title as role, NULL as base_salary, NULL as bonus, 
+                    NULL as benefits, location, NULL as remote_policy, status, notes, 
+                    added_date as created_at, id as application_id, 'job_applications' as table_source
+                FROM job_applications
+                WHERE LOWER(status) = %(status)s
+                """
+                result = self.db_manager.execute_query(query, {'status': status}, fetch='all')
+            else:
+                query = """
+                SELECT 
+                    id, company, position_title as role, NULL as base_salary, NULL as bonus, 
+                    NULL as benefits, location, NULL as remote_policy, status, notes, 
+                    added_date as created_at, id as application_id, 'job_applications' as table_source
+                FROM job_applications
+                WHERE LOWER(status) IN ('accepted', 'rejected', 'withdrawn', 'interview')
+                """
+                result = self.db_manager.execute_query(query, fetch='all')
+            
+            if result:
+                columns = ['id', 'company', 'role', 'base_salary', 'bonus', 'benefits', 'location', 'remote_policy', 'status', 'notes', 'created_at', 'application_id', 'table_source']
+                df = pd.DataFrame(result, columns=columns)
+                return df
+            else:
+                return pd.DataFrame(columns=['id', 'company', 'role', 'base_salary', 'bonus', 'benefits', 'location', 'remote_policy', 'status', 'notes', 'created_at', 'application_id', 'table_source'])
+        except Exception as e:
+            st.error(f"Error fetching applications: {str(e)}")
+            return pd.DataFrame(columns=['id', 'company', 'role', 'base_salary', 'bonus', 'benefits', 'location', 'remote_policy', 'status', 'notes', 'created_at', 'application_id', 'table_source'])
     
     def show_offer_comparison(self, offers: pd.DataFrame):
         """Show visual comparison of offers"""
@@ -379,9 +452,11 @@ class JobOffersView(BaseJobTracker):
         # Show applications with offer status that can be converted to detailed offers
         st.markdown("### 📋 Applications with Offers")
         applications_with_offers = self.get_applications_with_offers()
-        
+                
         if not applications_with_offers.empty:
             st.info(f"Found {len(applications_with_offers)} applications with 'offer' status. You can convert these to detailed job offers by filling in additional information.")
+            
+
             
             for _, app in applications_with_offers.iterrows():
                 try:
@@ -413,8 +488,28 @@ class JobOffersView(BaseJobTracker):
                             if app.get('url'):
                                 st.link_button("🔗 View Original Job", app['url'])
                             
+                            # Quick status change for applications
                             st.markdown("---")
-                            st.markdown("**Fill in offer details:**")
+                            st.markdown("**Quick Status Update:**")
+                            
+                            col1, col2 = st.columns([2, 1])
+                            
+                            with col1:
+                                new_status = st.selectbox(
+                                    "Change Application Status",
+                                    ["offer", "accepted", "rejected", "withdrawn"],
+                                    index=0,
+                                    key=f"quick_status_{app_id}"
+                                )
+                            
+                            with col2:
+                                if st.button("Update Status", key=f"update_btn_{app_id}"):
+                                    if self.update_application_status(app_id, table_source, new_status):
+                                        st.success(f"Status updated to {new_status}!")
+                                        st.rerun()
+                            
+                            st.markdown("---")
+                            st.markdown("**Convert to Detailed Offer (Optional):**")
                             
                             with st.form(f"offer_form_{app_id}"):
                                 col1, col2 = st.columns(2)
@@ -500,63 +595,87 @@ class JobOffersView(BaseJobTracker):
                     else:
                         st.warning("Company, Role, and Base Salary are required fields.")
         
-        # Show existing offers
+        # Show existing offers and applications
         st.markdown("### 📋 Current Offers")
         
         # Status filter
         status_filter = st.selectbox(
             "Filter by Status",
-            ["All", "Active", "Accepted", "Rejected", "Expired"]
+            ["All", "Active", "Accepted", "Rejected", "Expired", "Offer"]
         )
         
         # Get and display offers
         offers = self.get_offers(status_filter.lower() if status_filter != "All" else None)
         
+        # Get applications with different statuses
+        applications = self.get_applications_by_status(status_filter.lower() if status_filter != "All" else None)
+        
 
         
-        if not offers.empty:
-            # Show comparison
-            st.markdown("### 📊 Offer Comparison")
-            self.show_offer_comparison(offers)
+        # Combine offers and applications
+        all_items = pd.concat([offers, applications], ignore_index=True) if not offers.empty and not applications.empty else (
+            offers if not offers.empty else applications
+        )
+        
+        if not all_items.empty:
+            # Show comparison (only for offers with salary data)
+            offers_with_salary = offers[offers['base_salary'].notna() & (offers['base_salary'] > 0)]
+            if not offers_with_salary.empty:
+                st.markdown("### 📊 Offer Comparison")
+                self.show_offer_comparison(offers_with_salary)
             
             # Show detailed list
-            st.markdown("### 📝 Offer Details")
-            for _, offer in offers.iterrows():
+            st.markdown("### 📝 Offer & Application Details")
+            for _, item in all_items.iterrows():
                 try:
-                    company = offer.get('company', 'Unknown Company')
-                    role = offer.get('role', 'Unknown Role')
-                    offer_id = offer.get('id')
-                    status = offer.get('status', 'active')
+                    company = item.get('company', 'Unknown Company')
+                    role = item.get('role', 'Unknown Role')
+                    item_id = item.get('id')
+                    status = item.get('status', 'active')
+                    table_source = item.get('table_source', 'job_offers')
                     
                     with st.expander(f"{company} - {role} ({status.title()})"):
                         col1, col2, col3 = st.columns(3)
                         
-                        with col1:
-                            base_salary = offer.get('base_salary', 0) or 0
-                            st.metric("Base Salary", f"€{base_salary:,.2f}")
+                        # Show salary info only for detailed offers
+                        if table_source == 'job_offers' and item.get('base_salary'):
+                            with col1:
+                                base_salary = item.get('base_salary', 0) or 0
+                                st.metric("Base Salary", f"€{base_salary:,.2f}")
+                            
+                            with col2:
+                                bonus = item.get('bonus', 0) or 0
+                                if bonus:
+                                    st.metric("Bonus", f"€{bonus:,.2f}")
+                                else:
+                                    st.metric("Bonus", "€0")
+                            
+                            with col3:
+                                total = base_salary + bonus
+                                st.metric("Total", f"€{total:,.2f}")
+                        else:
+                            # For applications, show basic info
+                            with col1:
+                                st.metric("Type", "Application")
+                            
+                            with col2:
+                                st.metric("Source", table_source.replace('_', ' ').title())
+                            
+                            with col3:
+                                st.metric("Status", status.title())
                         
-                        with col2:
-                            bonus = offer.get('bonus', 0) or 0
-                            if bonus:
-                                st.metric("Bonus", f"€{bonus:,.2f}")
-                            else:
-                                st.metric("Bonus", "€0")
-                        
-                        with col3:
-                            total = base_salary + bonus
-                            st.metric("Total", f"€{total:,.2f}")
-                        
-                        location = offer.get('location', 'Not specified')
-                        remote_policy = offer.get('remote_policy', 'Not specified')
+                        location = item.get('location', 'Not specified')
+                        remote_policy = item.get('remote_policy', 'Not specified')
                         st.markdown(f"**Location:** {location}")
-                        st.markdown(f"**Remote Policy:** {remote_policy}")
+                        if remote_policy and remote_policy != 'Not specified':
+                            st.markdown(f"**Remote Policy:** {remote_policy}")
                         
-                        benefits = offer.get('benefits')
+                        benefits = item.get('benefits')
                         if benefits:
                             st.markdown("**Benefits:**")
                             st.markdown(benefits)
                         
-                        notes = offer.get('notes')
+                        notes = item.get('notes')
                         if notes:
                             st.markdown("**Notes:**")
                             st.markdown(notes)
@@ -566,20 +685,39 @@ class JobOffersView(BaseJobTracker):
                         col1, col2 = st.columns([2, 1])
                         
                         with col1:
-                            new_status = st.selectbox(
-                                "Update Status",
-                                ["active", "accepted", "rejected", "expired"],
-                                index=["active", "accepted", "rejected", "expired"].index(status),
-                                key=f"status_{offer_id}"
-                            )
+                            if table_source == 'job_offers':
+                                # For detailed offers
+                                status_options = ["active", "accepted", "rejected", "expired"]
+                                current_index = status_options.index(status) if status in status_options else 0
+                                new_status = st.selectbox(
+                                    "Update Status",
+                                    status_options,
+                                    index=current_index,
+                                    key=f"status_{item_id}"
+                                )
+                            else:
+                                # For applications
+                                status_options = ["offer", "accepted", "rejected", "withdrawn"]
+                                current_index = status_options.index(status) if status in status_options else 0
+                                new_status = st.selectbox(
+                                    "Update Status",
+                                    status_options,
+                                    index=current_index,
+                                    key=f"status_{item_id}"
+                                )
                         
                         with col2:
-                            if st.button("Update", key=f"update_{offer_id}"):
-                                if self.update_offer_status(offer_id, new_status):
-                                    st.success("Status updated!")
-                                    st.rerun()
+                            if st.button("Update", key=f"update_{item_id}"):
+                                if table_source == 'job_offers':
+                                    if self.update_offer_status(item_id, new_status):
+                                        st.success("Status updated!")
+                                        st.rerun()
+                                else:
+                                    if self.update_application_status(item_id, table_source, new_status):
+                                        st.success("Status updated!")
+                                        st.rerun()
                 except Exception as e:
                     st.error(f"Error displaying offer: {str(e)}")
                     continue
         else:
-            st.info("No offers found. Add your first offer using the form above.") 
+            st.info("No offers or applications found. Add your first offer using the form above or update application statuses to see them here.") 
