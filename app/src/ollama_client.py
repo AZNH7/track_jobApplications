@@ -195,4 +195,4 @@ def reinitialize_ollama_client():
     OllamaClient._instance = None
     # Create a new instance
     ollama_client = OllamaClient()
-    return ollama_client 
+    return ollama_client

@@ -213,7 +213,6 @@ class ConfigManager:
             print(f"❌ Error reloading config: {e}")
             return False
 
-
 # Global configuration manager instance
 _config_manager = None
 
