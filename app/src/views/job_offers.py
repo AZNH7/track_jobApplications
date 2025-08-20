@@ -109,30 +109,23 @@ class JobOffersView(BaseJobTracker):
             
             if applications_results:
                 applications_df = pd.DataFrame(applications_results, columns=columns)
-                st.write(f"🔍 DEBUG: Found {len(applications_results)} applications with offer status")
             else:
                 applications_df = pd.DataFrame(columns=columns)
-                st.write("🔍 DEBUG: No applications with offer status found")
             
             if job_applications_results:
                 job_applications_df = pd.DataFrame(job_applications_results, columns=columns)
-                st.write(f"🔍 DEBUG: Found {len(job_applications_results)} job_applications with offer status")
             else:
                 job_applications_df = pd.DataFrame(columns=columns)
-                st.write("🔍 DEBUG: No job_applications with offer status found")
             
 
             
             # Combine and sort by last_updated
             if applications_df.empty and job_applications_df.empty:
-                st.write("🔍 DEBUG: No offers found in either table")
                 return pd.DataFrame()
             
             all_applications = pd.concat([applications_df, job_applications_df], ignore_index=True)
             
             if not all_applications.empty:
-                st.write(f"🔍 DEBUG: Combined {len(all_applications)} total applications with offers")
-                
                 # Ensure all required columns exist
                 required_columns = ['id', 'company', 'title', 'status', 'applied_date', 'source', 
                                   'notes', 'email_subject', 'email_date', 'job_id', 'last_updated', 
@@ -144,10 +137,6 @@ class JobOffersView(BaseJobTracker):
                 # Sort by last_updated if the column exists and has data
                 if 'last_updated' in all_applications.columns and not all_applications['last_updated'].isna().all():
                     all_applications.sort_values('last_updated', ascending=False, inplace=True)
-                
-                # Show sample data for debugging
-                st.write("🔍 DEBUG: Sample of offers data:")
-                st.write(all_applications[['company', 'title', 'status', 'table_source']].head())
             
             return all_applications
             

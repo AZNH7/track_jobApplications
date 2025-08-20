@@ -121,9 +121,6 @@ OLLAMA_HOST="http://host.docker.internal:11434"
 - 🧠 **Intelligent Job Analysis**: Automatic job categorization and skill extraction
 
 - 💡 **Application Insights**: Personalized application strategies and tips
-- 📝 **Cover Letter Guidance**: AI-generated key points to highlight
-- 🎤 **Interview Preparation**: Focus areas and questions to ask
-- ⚠️ **Red Flag Detection**: Identify potential concerns in job postings
 - ✅ **Quality Assessment**: Job quality scoring and positive indicators
 - 🔒 **Privacy-First**: All AI processing happens locally on your host machine (Ollama)
 
@@ -153,7 +150,6 @@ The application supports multiple job search platforms with specialized scraping
 | **Indeed** | `https://de.indeed.com` | `https://de.indeed.com/jobs?` | Remote work filter, German market focus |
 | **StepStone** | `https://www.stepstone.de` | `https://www.stepstone.de/jobs/` | Work-from-home filter, language detection |
 | **Xing** | `https://www.xing.com` | `https://www.xing.com/jobs/search?` | German professional network |
-
 | **Stellenanzeigen** | `https://www.stellenanzeigen.de` | `https://www.stellenanzeigen.de/suche/?` | German job listings |
 | **MeineStadt** | `https://jobs.meinestadt.de` | `https://jobs.meinestadt.de/jobs?` | Local job focus |
 | **JobRapido** | `https://de.jobrapido.com` | `https://de.jobrapido.com/?` | Job aggregation platform |
@@ -175,37 +171,36 @@ Each platform uses specific parameters for job searches:
 ### Example Search URLs
 
 #### Standard Search (Essen)
-When searching for "IT system" jobs in "Essen", the following URLs are generated:
+When searching for "Backend Developer" jobs in "Berlin", the following URLs are generated:
 
 | Platform | Example Search URL |
 |----------|-------------------|
-| **LinkedIn** | `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=IT+system&location=Essen&f_TPR=r604800&sortBy=DD&start=0` |
-| **Indeed** | `https://de.indeed.com/jobs?q=IT+system&l=Essen&start=0&sort=date&fromage=3&radius=35` |
-| **StepStone** | `https://www.stepstone.de/jobs/it-system?sort=2&action=sort_publish&location=Essen` |
-| **Xing** | `https://www.xing.com/jobs/search?keywords=IT+system&page=1&location=Essen` |
-
-| **Stellenanzeigen** | `https://www.stellenanzeigen.de/suche/?fulltext=IT+system&locationIds=12345` |
-| **MeineStadt** | `https://jobs.meinestadt.de/jobs?was=IT+system&seite=1&wo=Essen` |
-| **JobRapido** | `https://de.jobrapido.com/?q=IT+system&p=1&l=Essen` |
+| **LinkedIn** | `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=Backend+Developer&location=Berlin&f_TPR=r604800&sortBy=DD&start=0` |
+| **Indeed** | `https://de.indeed.com/jobs?q=Backend+Developer&l=Berlin&start=0&sort=date&fromage=3&radius=35` |
+| **StepStone** | `https://www.stepstone.de/jobs/backend-developer?sort=2&action=sort_publish&location=Berlin` |
+| **Xing** | `https://www.xing.com/jobs/search?keywords=Backend+Developer&page=1&location=Berlin` |
+| **Stellenanzeigen** | `https://www.stellenanzeigen.de/suche/?fulltext=Backend+Developer&locationIds=12345` |
+| **MeineStadt** | `https://jobs.meinestadt.de/jobs?was=Backend+Developer&seite=1&wo=Berlin` |
+| **JobRapido** | `https://de.jobrapido.com/?q=Backend+Developer&p=1&l=Berlin` |
 
 #### Remote Job Search
-When searching for "IT system" remote jobs:
+When searching for "Backend Developer" remote jobs:
 
 | Platform | Example Remote Search URL |
 |----------|---------------------------|
-| **LinkedIn** | `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=IT+system&location=Germany&f_TPR=r604800&sortBy=DD&start=0&f_WT=2&geoId=101282230&distance=25` |
-| **Indeed** | `https://de.indeed.com/jobs?q=IT+system&l=germany&start=0&sort=date&fromage=3&radius=35&sc=0kf%3Aattr%28DSQF7%29%3B` |
-| **StepStone** | `https://www.stepstone.de/jobs/it-system?sort=2&action=sort_publish&location=germany&wfh=1&radius=30&action=facet_selected%3bworkFromHome%3b1` |
-| **Stellenanzeigen** | `https://www.stellenanzeigen.de/suche/?fulltext=IT+system&locationIds=X-HO-100` |
+| **LinkedIn** | `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=Backend+Developer&location=Germany&f_TPR=r604800&sortBy=DD&start=0&f_WT=2&geoId=101282230&distance=25` |
+| **Indeed** | `https://de.indeed.com/jobs?q=Backend+Developer&l=germany&start=0&sort=date&fromage=3&radius=35&sc=0kf%3Aattr%28DSQF7%29%3B` |
+| **StepStone** | `https://www.stepstone.de/jobs/backend-developer?sort=2&action=sort_publish&location=germany&wfh=1&radius=30&action=facet_selected%3bworkFromHome%3b1` |
+| **Stellenanzeigen** | `https://www.stellenanzeigen.de/suche/?fulltext=Backend+Developer&locationIds=X-HO-100` |
 
 #### English-Only Search
-When searching for "IT system" jobs in English only:
+When searching for "Backend Developer" jobs in English only:
 
 | Platform | Example English-Only Search URL |
 |----------|--------------------------------|
-| **LinkedIn** | `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=IT+system&location=Essen&f_TPR=r604800&sortBy=DD&start=0` |
-| **Indeed** | `https://de.indeed.com/jobs?q=IT+system&l=Essen&start=0&sort=date&fromage=3&radius=35&lang=en` |
-| **StepStone** | `https://www.stepstone.de/jobs/it-system?sort=2&action=sort_publish&fdl=en` |
+| **LinkedIn** | `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=Backend+Developer&location=Essen&f_TPR=r604800&sortBy=DD&start=0` |
+| **Indeed** | `https://de.indeed.com/jobs?q=Backend+Developer&l=Essen&start=0&sort=date&fromage=3&radius=35&lang=en` |
+| **StepStone** | `https://www.stepstone.de/jobs/backend-developer?sort=2&action=sort_publish&fdl=en` |
 
 **Notes**: 
 - **Stellenanzeigen** uses location IDs instead of text names
@@ -257,14 +252,6 @@ docker-compose restart job-tracker
 docker-compose logs -f job-tracker
 ```
 
-## 📚 Documentation
-
-- **AI Integration**: `docs/OLLAMA_INTEGRATION_GUIDE.md`
-- **Setup Guides**: `docs/`
-- **API Documentation**: `web-app/*/README.md`
-- **Troubleshooting**: `docs/WEB_TEST_TROUBLESHOOTING.md`
-- **Performance Tuning**: `docs/SPEED_OPTIMIZATION_GUIDE.md`
-
 ## 🤖 AI Setup (Optional)
 
 The AI features use **Ollama running on your host machine** (not in Docker).
@@ -289,6 +276,45 @@ ollama serve
 - **Internet**: Required for initial model download only
 
 **Note**: Ollama runs on your host machine at `localhost:11434`, and the Docker containers connect to it via `host.docker.internal:11434`.
+
+### Available AI Models
+
+The application supports various AI models through Ollama. You can configure your preferred model in the Streamlit settings or environment variables:
+
+#### Recommended Models (Best Performance)
+- **`llama3.2:latest`** - Latest Llama 3.2 model (default, best overall performance)
+- **`llama3:8b`** - Llama 3 8B parameter model (faster, lower resource usage)
+- **`qwen2.5:14b`** - Qwen 2.5 14B model (excellent for career analysis)
+- **`gpt-oss:latest`** - Open source GPT model (good general performance)
+- **`deepseek-r1:latest`** - DeepSeek R1 model (excellent reasoning capabilities)
+
+#### Alternative Models
+- **`mistral:7b`** - Mistral 7B model (good balance of speed and quality)
+- **`codellama:7b`** - Code-focused model (excellent for technical job analysis)
+- **`gemma:7b`** - Google's Gemma 7B model (efficient and reliable)
+- **`phi:latest`** - Microsoft's Phi model (fast inference)
+
+#### Model Selection
+You can change the AI model in several ways:
+1. **Streamlit Settings**: Go to Settings → LLM Configuration → Ollama Model
+2. **Environment Variable**: Set `OLLAMA_MODEL=your_model_name` in `.env`
+3. **Configuration File**: Edit `app/job_tracker_config.json`
+
+#### Model Download Commands
+```bash
+# Download recommended models
+ollama pull llama3.2:latest
+ollama pull llama3:8b
+ollama pull qwen2.5:14b
+ollama pull gpt-oss:latest
+ollama pull deepseek-r1:latest
+
+# Download alternative models
+ollama pull mistral:7b
+ollama pull codellama:7b
+ollama pull gemma:7b
+ollama pull phi:latest
+```
 
 ## 🛡️ Privacy & Security
 
@@ -315,13 +341,6 @@ This tool is for personal use to track job applications. Users are responsible f
 - Using scraped data in accordance with applicable laws
 - Not violating any platform's terms of use
 
-## 💬 Support
-
-- 🐛 **Bug Reports**: Open an issue with detailed reproduction steps
-- 💡 **Feature Requests**: Open an issue with your enhancement proposal
-- 📖 **Documentation**: Check the `docs/` directory for detailed guides
-- 🤔 **Questions**: Start a discussion in the repository
-
 ## 📝 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
@@ -331,4 +350,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Streamlit for the amazing web framework
 - Docker for containerization
 - Ollama for local AI capabilities (runs on host machine)
-- All the open-source libraries that make this project possible 

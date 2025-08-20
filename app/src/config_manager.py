@@ -201,6 +201,18 @@ class ConfigManager:
             print(f"❌ Error importing config: {e}")
             return False
 
+    def reload_config(self) -> bool:
+        """Reload configuration from file, clearing cached data."""
+        try:
+            # Clear cached data
+            self._config_data = {}
+            # Reload from file
+            self._load_config()
+            return True
+        except Exception as e:
+            print(f"❌ Error reloading config: {e}")
+            return False
+
 
 # Global configuration manager instance
 _config_manager = None
