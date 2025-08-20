@@ -69,7 +69,8 @@ jobs:
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
-        context: ./app
+        context: .
+        file: ./app/Dockerfile
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
@@ -89,64 +90,34 @@ jobs:
         cp app/env.template release-package/
         cp app/job_tracker_config.json release-package/
         
-                 # Create installation scripts
-         echo "Creating installation scripts..."
-         |
-           cat > release-package/install.sh << 'EOF'
-           #!/bin/bash
-           echo "🚀 Installing Job Application Tracker..."
-           echo "📋 Prerequisites: Docker and Git must be installed"
-           
-           # Check if Docker is installed
-           if ! command -v docker &> /dev/null; then
-               echo "❌ Docker is not installed. Please install Docker first."
-               exit 1
-           fi
-           
-           # Check if docker-compose is available
-           if ! command -v docker-compose &> /dev/null; then
-               echo "⚠️  docker-compose not found, trying docker compose..."
-               if ! docker compose version &> /dev/null; then
-                   echo "❌ Neither docker-compose nor docker compose found. Please install Docker Compose."
-                   exit 1
-               fi
-               COMPOSE_CMD="docker compose"
-           else
-               COMPOSE_CMD="docker-compose"
-           fi
-           
-           echo "✅ Docker found, starting application..."
-           $COMPOSE_CMD -f app/docker-compose.yml up --build -d
-           
-           echo "🎉 Installation complete!"
-           echo "🌐 Access the application at: http://localhost:8501"
-           echo "📖 Read README.md for configuration instructions"
-           EOF
-         chmod +x release-package/install.sh
-         
-         # Create Windows installation script
-         |
-           cat > release-package/install.bat << 'EOF'
-           @echo off
-           echo 🚀 Installing Job Application Tracker...
-           echo 📋 Prerequisites: Docker Desktop must be installed and running
-           
-           REM Check if Docker is running
-           docker version >nul 2>&1
-           if errorlevel 1 (
-               echo ❌ Docker is not running. Please start Docker Desktop first.
-               pause
-               exit /b 1
-           )
-           
-           echo ✅ Docker found, starting application...
-           docker-compose -f app/docker-compose.yml up --build -d
-           
-           echo 🎉 Installation complete!
-           echo 🌐 Access the application at: http://localhost:8501
-           echo 📖 Read README.md for configuration instructions
-           pause
-           EOF
+        # Create installation scripts
+        echo "Creating installation scripts..."
+        echo '#!/bin/bash' > release-package/install.sh
+        echo 'echo "🚀 Installing Job Application Tracker..."' >> release-package/install.sh
+        echo 'echo "📋 Prerequisites: Docker must be installed"' >> release-package/install.sh
+        echo 'if ! command -v docker &> /dev/null; then' >> release-package/install.sh
+        echo '    echo "❌ Docker is not installed. Please install Docker first."' >> release-package/install.sh
+        echo '    exit 1' >> release-package/install.sh
+        echo 'fi' >> release-package/install.sh
+        echo 'echo "✅ Docker found, starting application..."' >> release-package/install.sh
+        echo 'docker-compose -f app/docker-compose.yml up --build -d || docker compose -f app/docker-compose.yml up --build -d' >> release-package/install.sh
+        echo 'echo "🎉 Installation complete! Access at: http://localhost:8501"' >> release-package/install.sh
+        chmod +x release-package/install.sh
+        
+        # Create Windows installation script
+        echo '@echo off' > release-package/install.bat
+        echo 'echo 🚀 Installing Job Application Tracker...' >> release-package/install.bat
+        echo 'echo 📋 Prerequisites: Docker Desktop must be running' >> release-package/install.bat
+        echo 'docker version >nul 2>&1' >> release-package/install.bat
+        echo 'if errorlevel 1 (' >> release-package/install.bat
+        echo '    echo ❌ Docker is not running. Please start Docker Desktop first.' >> release-package/install.bat
+        echo '    pause' >> release-package/install.bat
+        echo '    exit /b 1' >> release-package/install.bat
+        echo ')' >> release-package/install.bat
+        echo 'echo ✅ Docker found, starting application...' >> release-package/install.bat
+        echo 'docker-compose -f app/docker-compose.yml up --build -d' >> release-package/install.bat
+        echo 'echo 🎉 Installation complete! Access at: http://localhost:8501' >> release-package/install.bat
+        echo 'pause' >> release-package/install.bat
          
          # Create version file
          echo "Creating version file..."
