@@ -193,6 +193,6 @@ def reinitialize_ollama_client():
     global ollama_client
     # Clear the singleton instance
     OllamaClient._instance = None
-    # Create a new instance
+        # Create a new instance
     ollama_client = OllamaClient()
     return ollama_client
