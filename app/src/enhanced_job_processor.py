@@ -70,7 +70,6 @@ class EnhancedJobProcessor:
                 self.logger.warning("Could not connect to Ollama. Job processing will be disabled.")
         except Exception as e:
             self.logger.error(f"Ollama connection test failed: {e}")
-    
     def _call_ollama(self, prompt: str, system_prompt: str = "", max_tokens: int = 1000) -> Optional[str]:
         """Make a call to Ollama API"""
         if not self.available:
