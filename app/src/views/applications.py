@@ -241,10 +241,15 @@ class ApplicationsView(BaseJobTracker):
             
             # Also remove from ignored_jobs if it's there (to make it available again)
             try:
-                self.db_manager.execute_query(
-                    "DELETE FROM ignored_jobs WHERE url = %s",
-                    (job_url,)
-                )
+                # First get the job_listing_id from the job_applications table
+                job_query = "SELECT job_listing_id FROM job_applications WHERE url = %s"
+                job_result = self.db_manager.execute_query(job_query, (job_url,), fetch='one')
+                
+                if job_result and job_result[0]:
+                    self.db_manager.execute_query(
+                        "DELETE FROM ignored_jobs WHERE job_listing_id = %s",
+                        (job_result[0],)
+                    )
             except Exception as e:
                 # Ignore errors here - job might not be in ignored_jobs
                 pass

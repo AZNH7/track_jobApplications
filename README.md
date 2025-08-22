@@ -101,6 +101,21 @@ docker-compose -f app/docker-compose.yml up --build
    cd job-tracker
    ```
 
+2. **Run the Windows Setup Script**
+   ```cmd
+   # Double-click setup.bat or run from command line
+   setup.bat
+   ```
+   
+   **Important Notes for Windows Users:**
+   - The setup script will guide you through each step
+   - **You may need to press Enter at certain points to continue**
+   - The script will check prerequisites and ask for confirmation before proceeding
+   - If Docker Desktop is not running, the script will prompt you to start it
+   - The container build process may take several minutes - please be patient
+   cd job-tracker
+   ```
+
 2. **Start the Application**
    ```cmd
    # Option 1: Use the start script (if available)
@@ -483,6 +498,50 @@ docker-compose restart job-tracker
 # Monitor logs for debugging
 docker-compose logs -f job-tracker
 ```
+
+## 🔧 Troubleshooting
+
+### Windows-Specific Issues
+
+#### Setup Script Issues
+- **"Press Enter to continue" prompts**: This is normal behavior. The script will pause at key points to let you review the process
+- **Docker Desktop not running**: The script will detect this and prompt you to start Docker Desktop
+- **Permission errors**: Run Command Prompt as Administrator if you encounter permission issues
+- **Long build times**: The first build may take 10-15 minutes. This is normal for the initial setup
+
+#### Common Windows Problems
+- **WSL 2 not enabled**: Enable WSL 2 in Windows Features or use Hyper-V backend
+- **Virtualization disabled**: Enable virtualization in BIOS (Intel VT-x or AMD-V)
+- **Port conflicts**: If port 8501 is in use, the script will show an error. Close other applications using this port
+- **Firewall blocking**: Allow Docker Desktop through Windows Firewall when prompted
+
+#### Docker Issues
+- **"Docker is not running"**: Start Docker Desktop and wait for it to fully load
+- **"Docker Compose not found"**: Ensure Docker Desktop is properly installed with Compose support
+- **Container build failures**: Check your internet connection and try running `docker system prune` to clear cache
+
+### General Issues
+
+#### Application Not Starting
+1. Check if all containers are running: `docker ps`
+2. View application logs: `docker logs track_jobapplication-app`
+3. Ensure ports 8501, 5432, 6379, 8190 are not in use by other applications
+
+#### Database Connection Issues
+1. Check if PostgreSQL container is running: `docker ps | grep postgres`
+2. Verify database credentials in `.env` file
+3. Check database logs: `docker logs track_jobapplication-postgres`
+
+#### AI Features Not Working
+1. Ensure Ollama is installed and running on your host machine
+2. Check if the AI model is downloaded: `ollama list`
+3. Verify Ollama is accessible: `curl http://localhost:11434/api/tags`
+
+### Getting Help
+- Check the application logs for detailed error messages
+- Ensure all prerequisites are properly installed
+- Try restarting Docker Desktop and running the setup script again
+- For persistent issues, check the Docker and Ollama documentation
 
 ## 🤖 AI Setup (Optional)
 

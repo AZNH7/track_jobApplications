@@ -7,7 +7,7 @@ import time
 from datetime import datetime, timedelta
 import streamlit as st
 
-from database_manager import get_db_manager
+from src.database.database_manager import get_db_manager
 from enhanced_job_processor import EnhancedJobProcessor
 from scrapers import JobScraperOrchestrator
 from config_manager import ConfigManager

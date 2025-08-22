@@ -18,7 +18,7 @@ import os
 # Add the parent directory to the path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database_manager import get_db_manager
+from src.database.database_manager import get_db_manager
 
 logger = logging.getLogger(__name__)
 
@@ -778,19 +778,21 @@ class JobDetailsCache:
     def get_job_details_with_retry(self, job_url: str, max_retries: int = 3, retry_delay: float = 1.0,
                                   force_refresh: bool = False, include_historical: bool = False) -> Optional[Dict[str, Any]]:
         """
-        Get job details with enhanced retry mechanism for race conditions and platform-specific issues.
+        Get job details from cache only. This method does NOT fetch from the web.
+        The actual fetching should be done by the scrapers, and this method only
+        handles cache retrieval with retry logic.
         
         Args:
             job_url: URL of the job to get details for
-            max_retries: Maximum number of retries
+            max_retries: Maximum number of retries for cache access
             retry_delay: Delay between retries in seconds
-            force_refresh: If True, ignore cache and fetch fresh data
+            force_refresh: If True, ignore cache and return None (forcing fresh fetch)
             include_historical: If True, include historical data in response
             
         Returns:
-            Job details dictionary with enhanced metadata or None if not available
+            Job details dictionary from cache or None if not cached
         """
-        # Enhanced retry logic with exponential backoff and platform-specific handling
+        # Only check cache - do not fetch from web
         for attempt in range(max_retries):
             try:
                 # Check if URL is being processed
@@ -798,136 +800,34 @@ class JobDetailsCache:
                     is_being_processed = job_url in self._processing_urls
                 
                 if is_being_processed:
-                    # Enhanced waiting logic for platform-specific URLs
+                    # Wait if URL is being processed by another thread
                     wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
                     logger.info(f"URL {job_url} is being processed, waiting {wait_time}s before retry {attempt + 1}/{max_retries}")
                     time.sleep(wait_time)
                     continue
                 
-                # Try to get job details
+                # Try to get job details from cache only
                 result = self.get_job_details(job_url, force_refresh, include_historical)
                 
-                # Enhanced result validation for platform-specific URLs
+                # If we got a result, return it
                 if result is not None:
-                    # Validate that we have meaningful content for different platforms
-                    if 'xing.com' in job_url.lower():
-                        title = result.get('title', '')
-                        description = result.get('description', '')
-                        
-                        # Check if we have meaningful content
-                        if (title and title != 'Unknown Title' and 
-                            description and len(description.strip()) > 50):
-                            logger.info(f"✅ Valid Xing job details retrieved for: {job_url}")
-                            return result
-                        else:
-                            logger.warning(f"⚠️ Xing job details appear incomplete for: {job_url}")
-                            # For Xing, we might want to retry even with incomplete data
-                            if attempt < max_retries - 1:
-                                wait_time = retry_delay * (2 ** attempt)
-                                logger.info(f"Retrying Xing job due to incomplete data, attempt {attempt + 1}/{max_retries}")
-                                time.sleep(wait_time)
-                                continue
-                            else:
-                                logger.warning(f"Returning incomplete Xing job details after {max_retries} attempts: {job_url}")
-                                return result
-                    
-                    elif 'indeed.com' in job_url.lower():
-                        title = result.get('title', '')
-                        description = result.get('description', '')
-                        
-                        # Check if we have meaningful content for Indeed
-                        if (title and title != 'Unknown Title' and title != 'Error - HTTP' and title != 'Error - No Content' and
-                            description and len(description.strip()) > 30):
-                            logger.info(f"✅ Valid Indeed job details retrieved for: {job_url}")
-                            return result
-                        else:
-                            logger.warning(f"⚠️ Indeed job details appear incomplete for: {job_url}")
-                            # For Indeed, we might want to retry even with incomplete data
-                            if attempt < max_retries - 1:
-                                wait_time = retry_delay * (2 ** attempt)
-                                logger.info(f"Retrying Indeed job due to incomplete data, attempt {attempt + 1}/{max_retries}")
-                                time.sleep(wait_time)
-                                continue
-                            else:
-                                logger.warning(f"Returning incomplete Indeed job details after {max_retries} attempts: {job_url}")
-                                return result
-                    
-                    elif 'stellenanzeigen.de' in job_url.lower():
-                        title = result.get('title', '')
-                        description = result.get('description', '')
-                        company = result.get('company', '')
-                        
-                        # More lenient validation for Stellenanzeigen - allow jobs without company for now
-                        if (title and title != 'Unknown Title' and title != 'Error - HTTP' and title != 'Error - HTML Parse Failed' and
-                            description and len(description.strip()) > 30):  # Reduced from 50 to 30 chars
-                            logger.info(f"✅ Valid Stellenanzeigen job details retrieved for: {job_url}")
-                            return result
-                        else:
-                            logger.warning(f"⚠️ Stellenanzeigen job details appear incomplete for: {job_url}")
-                            # For Stellenanzeigen, we might want to retry even with incomplete data
-                            if attempt < max_retries - 1:
-                                wait_time = retry_delay * (2 ** attempt)
-                                logger.info(f"Retrying Stellenanzeigen job due to incomplete data, attempt {attempt + 1}/{max_retries}")
-                                time.sleep(wait_time)
-                                continue
-                            else:
-                                logger.warning(f"Returning incomplete Stellenanzeigen job details after {max_retries} attempts: {job_url}")
-                                return result
-                    
-                    elif 'linkedin.com' in job_url.lower():
-                        title = result.get('title', '')
-                        description = result.get('description', '')
-                        company = result.get('company', '')
-                        
-                        # More lenient validation for LinkedIn - allow jobs with shorter descriptions
-                        # LinkedIn often has brief job descriptions, so we're more flexible
-                        has_valid_title = title and title != 'Unknown Title' and title != 'Error - HTTP' and title != 'Error - HTML Parse Failed'
-                        has_valid_description = description and len(description.strip()) > 15  # Reduced from 30 to 15
-                        
-                        # For LinkedIn, we accept jobs with either a good title OR a reasonable description
-                        # Also accept jobs with any meaningful content (LinkedIn can be brief)
-                        has_any_content = (title and len(title.strip()) > 5) or (description and len(description.strip()) > 10)
-                        
-                        if has_valid_title or has_valid_description or has_any_content:
-                            logger.info(f"✅ Valid LinkedIn job details retrieved for: {job_url}")
-                            return result
-                        else:
-                            logger.warning(f"⚠️ LinkedIn job details appear incomplete for: {job_url}")
-                            logger.debug(f"   Title valid: {has_valid_title}, Description valid: {has_valid_description}, Has any content: {has_any_content}")
-                            logger.debug(f"   Title: '{title}', Description length: {len(description.strip()) if description else 0}")
-                            if description:
-                                logger.debug(f"   Description preview: {description[:100]}...")
-                            else:
-                                logger.debug(f"   No description found")
-                            
-                            # For LinkedIn, we might want to retry even with incomplete data
-                            if attempt < max_retries - 1:
-                                wait_time = retry_delay * (2 ** attempt)
-                                logger.info(f"Retrying LinkedIn job due to incomplete data, attempt {attempt + 1}/{max_retries}")
-                                time.sleep(wait_time)
-                                continue
-                            else:
-                                logger.warning(f"Returning incomplete LinkedIn job details after {max_retries} attempts: {job_url}")
-                                return result
-                    
-                    else:
-                        # For other platforms, return the result as is
-                        return result
+                    logger.info(f"✅ Retrieved job details from cache for: {job_url}")
+                    return result
                 
                 # If we got None and this isn't the last attempt, wait and retry
                 if attempt < max_retries - 1:
                     wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
-                    logger.info(f"Retry {attempt + 1}/{max_retries} for {job_url} after {wait_time}s delay")
+                    logger.info(f"Cache miss, retry {attempt + 1}/{max_retries} for {job_url} after {wait_time}s delay")
                     time.sleep(wait_time)
                     
             except Exception as e:
-                logger.error(f"Error in retry attempt {attempt + 1} for {job_url}: {e}")
+                logger.error(f"Error in cache retry attempt {attempt + 1} for {job_url}: {e}")
                 if attempt < max_retries - 1:
                     wait_time = retry_delay * (2 ** attempt)
                     time.sleep(wait_time)
         
-        # Enhanced logging for failed attempts
-        logger.warning(f"Failed to retrieve job details after {max_retries} attempts for: {job_url}")
+        # Log cache miss
+        logger.info(f"Cache MISS for job details: {job_url}")
         return None
 
     def is_url_being_processed(self, job_url: str) -> bool:
@@ -942,6 +842,90 @@ class JobDetailsCache:
         """
         with self._processing_lock:
             return job_url in self._processing_urls
+    
+    def fetch_and_cache_job_details(self, job_url: str, fetch_function, max_retries: int = 3, 
+                                   retry_delay: float = 1.0) -> Optional[Dict[str, Any]]:
+        """
+        Fetch job details using the provided fetch function and cache them.
+        This method should be called by scrapers to fetch and cache job details.
+        
+        Args:
+            job_url: URL of the job to fetch and cache
+            fetch_function: Function that takes a URL and returns job details
+            max_retries: Maximum number of retries for fetching
+            retry_delay: Delay between retries in seconds
+            
+        Returns:
+            Job details dictionary or None if fetching failed
+        """
+        try:
+            # Mark this URL as being processed
+            with self._processing_lock:
+                if job_url in self._processing_urls:
+                    logger.info(f"URL {job_url} is already being processed by another thread")
+                    return None
+                self._processing_urls.add(job_url)
+            
+            # Try to fetch job details with retry logic
+            for attempt in range(max_retries):
+                try:
+                    logger.info(f"Fetching job details for: {job_url} (attempt {attempt + 1}/{max_retries})")
+                    
+                    # Call the fetch function provided by the scraper
+                    job_details = fetch_function(job_url)
+                    
+                    if job_details:
+                        # Cache the fetched details
+                        success = self.cache_job_details(job_url, job_details, is_valid=True)
+                        if success:
+                            logger.info(f"✅ Successfully fetched and cached job details for: {job_url}")
+                            return job_details
+                        else:
+                            logger.error(f"Failed to cache job details for: {job_url}")
+                            return job_details  # Return details even if caching failed
+                    else:
+                        logger.warning(f"No job details returned by fetch function for: {job_url}")
+                        
+                except Exception as e:
+                    logger.error(f"Error fetching job details (attempt {attempt + 1}/{max_retries}) for {job_url}: {e}")
+                    
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
+                        logger.info(f"Retrying fetch for {job_url} after {wait_time}s delay")
+                        time.sleep(wait_time)
+                    else:
+                        # Cache error details on final attempt
+                        error_details = {
+                            "title": "Error - Fetch Failed",
+                            "company": "Unknown",
+                            "location": "Unknown",
+                            "salary": "",
+                            "description": f"Failed to fetch job details after {max_retries} attempts: {str(e)}",
+                            "requirements": "",
+                            "benefits": "",
+                            "contact_info": "",
+                            "application_url": "",
+                            "external_url": job_url,
+                            "html_content": "",
+                            "scraped_date": datetime.now(),
+                            "last_accessed": datetime.now()
+                        }
+                        self.cache_job_details(job_url, error_details, is_valid=False, 
+                                             error_message=f"Fetch failed after {max_retries} attempts: {str(e)}")
+                        logger.error(f"Failed to fetch job details after {max_retries} attempts for: {job_url}")
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Unexpected error in fetch_and_cache_job_details for {job_url}: {e}")
+            return None
+        finally:
+            # Always clean up the processing flag
+            try:
+                with self._processing_lock:
+                    self._processing_urls.discard(job_url)
+            except:
+                pass
 
 # Global cache instance with enhanced configuration for better 403 error handling
 job_details_cache = JobDetailsCache(
