@@ -12,9 +12,9 @@ import time
 # Absolute imports
 from src.views.base_view import BaseView
 from src.services.job_grouping_service import JobGroupingService, JobGroup
-from src.services.job_email_matcher_service import JobEmailMatcherService
+
 from src.utils.ui_components import UIComponents
-from src.database_manager import get_db_manager
+from src.database.database_manager import get_db_manager
 from src.config_manager import get_config_manager
 from src.scrapers import JobScraperOrchestrator
 from src.components.persistent_search_results import PersistentSearchResults
@@ -31,7 +31,6 @@ class EnhancedJobSearchView(BaseView):
         
         # Initialize services and managers
         self.job_grouping_service = JobGroupingService()
-        self.job_email_matcher_service = JobEmailMatcherService()
         self.saved_search_service = SavedSearchService()
         self.ui = UIComponents()
         self.db_manager = get_db_manager()
@@ -54,6 +53,9 @@ class EnhancedJobSearchView(BaseView):
             st.session_state.search_log = []
         if 'platform_test_results' not in st.session_state:
             st.session_state.platform_test_results = {}
+        
+        # Migrate any existing saved searches from session state to database
+        self.saved_search_service.migrate_session_state_to_database()
         
     def show(self):
         """Show enhanced job search interface with grouping"""
@@ -102,12 +104,6 @@ class EnhancedJobSearchView(BaseView):
             try:
                 available_platforms = self.job_scraper_orchestrator.get_available_platforms()
                 working_platforms = available_platforms  # Use all available platforms
-                
-                # Debug: Show available platforms in an expander
-                with st.expander("🔧 Debug: Available Platforms", expanded=False):
-                    st.write(f"Available platforms from orchestrator: {available_platforms}")
-                    st.write(f"Configuration: {self.config_manager.get_value('job_search.enable_indeed', 'Not found')}")
-                    
             except Exception as e:
                 # Fallback to hardcoded list if orchestrator is not available
                 available_platforms = ["Indeed", "LinkedIn", "StepStone", "Xing", "Stellenanzeigen", "Jobrapido"]
@@ -162,20 +158,26 @@ class EnhancedJobSearchView(BaseView):
 
             submitted = st.form_submit_button("🚀 Start Search", type="primary", use_container_width=True)
 
-        # Clear loaded search after form is rendered
-        if 'loaded_search' in st.session_state:
-            del st.session_state.loaded_search
-
         if submitted:
             all_titles = []
             if job_titles_text:
                 all_titles.extend([t.strip() for t in job_titles_text.split('\n') if t.strip()])
+            
+            # If no titles from form but we have loaded search data, use that
+            if not all_titles and 'loaded_search' in st.session_state:
+                loaded_titles = st.session_state.loaded_search.get('job_titles', '')
+                if loaded_titles:
+                    all_titles.extend([t.strip() for t in loaded_titles.split('\n') if t.strip()])
             
             all_titles = list(dict.fromkeys(all_titles))
 
             if not all_titles:
                 st.error("❌ Please enter at least one job title")
                 return
+            
+            # If no platforms from form but we have loaded search data, use that
+            if not selected_platforms and 'loaded_search' in st.session_state:
+                selected_platforms = st.session_state.loaded_search.get('platforms', [])
             
             if not selected_platforms:
                 st.error("❌ Please select at least one platform")
@@ -209,6 +211,10 @@ class EnhancedJobSearchView(BaseView):
                 )
             else:
                 st.error("❌ Please provide a location")
+        
+        # Clear loaded search after form submission is processed
+        if submitted and 'loaded_search' in st.session_state:
+            del st.session_state.loaded_search
         
         # --- End of Form and search logic ---
 
@@ -474,83 +480,13 @@ class EnhancedJobSearchView(BaseView):
                     if "url" in job and job["url"]:
                         st.link_button("View Job Posting", job["url"])
 
-                with col3:
-                    if st.button("✉️ Find Associated Email", key=f"find_email_{unique_job_id}"):
-                        self._find_and_display_email_match(job)
+
 
                 st.markdown("---")
     
-    def _get_all_analyzed_emails(self) -> List[Dict[str, Any]]:
-        """Fetch all analyzed emails from the database"""
-        try:
-            emails = self.db_manager.get_applications()
-            return emails if emails else []
-        except Exception as e:
-            self.logger.error(f"Error fetching analyzed emails: {e}")
-            return []
 
-    def _find_and_display_email_match(self, job: Dict[str, Any]):
-        """
-        New UI workflow for finding and linking emails to jobs.
-        """
-        job_id = job.get('id')
-        job_title = job.get('title', 'Unknown Job')
 
-        # Use a modal for the interaction
-        modal = self.ui.modal(f"Link Email for '{job_title}'", key=f"email_modal_{job_id}")
 
-        with modal:
-            st.markdown(f"#### Searching for emails related to '{job_title}'...")
-
-            with st.spinner("Fetching and analyzing emails with LLM..."):
-                all_emails = self._get_all_analyzed_emails()
-                if not all_emails:
-                    st.warning("No emails found in the database to search through.")
-                    return
-                
-                match_result = self.job_email_matcher_service.find_best_matching_email(job, all_emails)
-
-            if not match_result:
-                st.error("No matching email application found.")
-                st.info("Could not find any email that is a strong match for this job application.")
-                return
-
-            st.success("Found a potential match!")
-
-            email = match_result['email']
-            score = match_result['score']
-            reason = match_result['reason']
-
-            st.markdown(f"**Match Score:** `{score}%`")
-            st.info(f"**Reason:** *{reason}*")
-            st.markdown("---")
-
-            st.markdown("##### Matched Email Details:")
-            st.markdown(f"**Subject:** {email.get('subject')}")
-            st.markdown(f"**From:** {email.get('sender')}")
-            st.markdown(f"**Date:** {email.get('date')}")
-
-            with st.expander("Show Email Body"):
-                st.text(email.get('body', 'No body available.'))
-            
-            st.markdown("---")
-            st.markdown("Do you want to link this job to this email application?")
-
-            # The application_id needs to be created or retrieved.
-            # Assuming the email has an 'application_id' if it's from a group, or we can create one.
-            application_id = email.get('application_id', f"app_{email.get('id')}")
-
-            if st.button("✅ Yes, link this job and email", key=f"link_{job_id}_{email.get('id')}"):
-                success = self.job_email_matcher_service.link_job_to_email_application(
-                    self.db_manager,
-                    job_id,
-                    application_id
-                )
-                if success:
-                    st.success("Successfully linked job to email application!")
-                    modal.close()
-                else:
-                    st.error("Failed to link job to email application.")
     
     def _save_job_group(self, group: JobGroup):
         """

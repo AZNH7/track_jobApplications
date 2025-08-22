@@ -19,7 +19,7 @@ from utils.data_loader import DataLoader
 from components.quick_insights_widget import QuickInsightsWidget
 from components.persistent_search_results import PersistentSearchResults
 from core.session_state import SessionStateManager
-from database_manager import get_db_manager
+from src.database.database_manager import get_db_manager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

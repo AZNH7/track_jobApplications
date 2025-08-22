@@ -35,14 +35,8 @@ class OllamaClient:
         # Setup logging
         self.logger = logging.getLogger(__name__)
         
-        # Try to resolve host.docker.internal if it's in the host
-        if 'host.docker.internal' in self.host:
-            try:
-                host_ip = socket.gethostbyname('host.docker.internal')
-                self.logger.info(f"Resolved host.docker.internal to {host_ip}")
-                self.host = self.host.replace('host.docker.internal', host_ip)
-            except socket.gaierror as e:
-                self.logger.warning(f"Could not resolve host.docker.internal: {e}")
+        # Cross-platform host resolution for Ollama
+        self.host = self._resolve_ollama_host(self.host)
         
         # Test connection on initialization with retries
         self.available = False
@@ -58,6 +52,48 @@ class OllamaClient:
                 f"Could not connect to Ollama at {self.host} after {self.max_retries} attempts. "
                 "LLM features will be disabled."
             )
+    
+    def _resolve_ollama_host(self, host: str) -> str:
+        """Resolve Ollama host for cross-platform compatibility"""
+        import platform
+        
+        # If host is already an IP address, return as is
+        if not any(keyword in host for keyword in ['host.docker.internal', 'localhost', '127.0.0.1']):
+            return host
+        
+        # Try different host resolution strategies based on platform
+        strategies = []
+        
+        # Strategy 1: Try host.docker.internal (Windows/macOS Docker Desktop)
+        if 'host.docker.internal' in host:
+            strategies.append(('host.docker.internal', 'host.docker.internal'))
+        
+        # Strategy 2: Try common Docker gateway IPs (Linux Docker)
+        strategies.extend([
+            ('172.17.0.1', '172.17.0.1'),
+            ('172.18.0.1', '172.18.0.1'),
+            ('172.19.0.1', '172.19.0.1'),
+            ('172.20.0.1', '172.20.0.1'),
+        ])
+        
+        # Strategy 3: Try localhost
+        strategies.append(('localhost', 'localhost'))
+        strategies.append(('127.0.0.1', '127.0.0.1'))
+        
+        # Test each strategy
+        for test_host, replacement in strategies:
+            try:
+                test_url = host.replace('host.docker.internal', test_host).replace('localhost', test_host).replace('127.0.0.1', test_host)
+                response = requests.get(f"{test_url}/api/tags", timeout=5)
+                if response.status_code == 200:
+                    self.logger.info(f"Successfully resolved Ollama host to {test_url}")
+                    return test_url
+            except Exception:
+                continue
+        
+        # If all strategies fail, return the original host
+        self.logger.warning(f"Could not resolve Ollama host, using original: {host}")
+        return host
     
     def test_connection(self) -> bool:
         """Test connection to Ollama server"""

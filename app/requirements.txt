@@ -33,7 +33,6 @@ python-dateutil==2.9.0.post0
 requests-cache==1.2.0
 tqdm==4.66.4
 python-Levenshtein==0.25.1
-fuzzywuzzy==0.18.0
 python-slugify==8.0.4
 undetected-chromedriver==3.5.5
 webdriver-manager==4.0.1
