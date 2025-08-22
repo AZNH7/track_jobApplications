@@ -6,32 +6,44 @@ setlocal enabledelayedexpansion
 
 echo [INFO] Starting Job Application Tracker Setup for Windows
 echo.
+echo [NOTE] This setup will guide you through the installation process.
+echo [NOTE] You may need to press Enter at certain points to continue.
+echo.
 
 REM Function to check if command exists
+echo [INFO] Checking Docker installation...
 where docker >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] Docker is not installed or not in PATH.
     echo Please install Docker Desktop for Windows:
     echo https://docs.docker.com/desktop/windows/
+    echo.
+    echo Press Enter to exit...
     pause
     exit /b 1
 )
 
 REM Check if Docker is running
+echo [INFO] Checking if Docker is running...
 docker info >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] Docker is not running. Please start Docker Desktop and try again.
+    echo.
+    echo Press Enter to exit...
     pause
     exit /b 1
 )
 
 REM Check Docker Compose
+echo [INFO] Checking Docker Compose...
 docker compose version >nul 2>&1
 if errorlevel 1 (
     docker-compose --version >nul 2>&1
     if errorlevel 1 (
         echo [ERROR] Docker Compose is not available.
         echo Please ensure Docker Desktop is properly installed.
+        echo.
+        echo Press Enter to exit...
         pause
         exit /b 1
     ) else (
@@ -42,6 +54,9 @@ if errorlevel 1 (
 )
 
 echo [SUCCESS] All prerequisites are available
+echo.
+echo [INFO] Press Enter to continue with directory setup...
+pause >nul
 
 REM Set up directories
 echo [INFO] Setting up directories...
@@ -96,6 +111,11 @@ if not exist ".env" (
 
 
 
+echo [SUCCESS] Directory setup completed
+echo.
+echo [INFO] Press Enter to continue with AI features setup...
+pause >nul
+
 REM Set up Ollama (optional)
 echo [INFO] Setting up AI features ^(Ollama^)...
 where ollama >nul 2>&1
@@ -117,11 +137,17 @@ if errorlevel 1 (
     )
 )
 
+echo [SUCCESS] AI features setup completed
+echo.
+echo [INFO] Press Enter to start the application...
+pause >nul
+
 REM Start the application
 echo [INFO] Starting Job Application Tracker...
 cd app
 
 echo [INFO] Building and starting containers...
+echo [NOTE] This may take several minutes. Please wait...
 %DOCKER_COMPOSE% up -d --build
 
 REM Wait for services to be ready

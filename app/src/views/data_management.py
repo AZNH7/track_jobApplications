@@ -133,10 +133,8 @@ class DataManagementView(BaseJobTracker):
             # Clear all job listings
             listings_query = "DELETE FROM job_listings"
             self.db_manager.execute_query(listings_query)
-            
-            # Clear email analysis data
-            emails_query = "DELETE FROM email_analysis"
-            self.db_manager.execute_query(emails_query)
+
+        pass
             
             # Get counts for reporting
             try:
@@ -144,7 +142,7 @@ class DataManagementView(BaseJobTracker):
                 result['job_listings'] = self.db_manager.execute_query("SELECT COUNT(*) FROM job_listings", fetch='one')[0] if self.db_manager.execute_query("SELECT COUNT(*) FROM job_listings", fetch='one') else 0
                 result['applications'] = self.db_manager.execute_query("SELECT COUNT(*) FROM applications", fetch='one')[0] if self.db_manager.execute_query("SELECT COUNT(*) FROM applications", fetch='one') else 0
                 result['offers'] = self.db_manager.execute_query("SELECT COUNT(*) FROM job_offers", fetch='one')[0] if self.db_manager.execute_query("SELECT COUNT(*) FROM job_offers", fetch='one') else 0
-                result['emails'] = self.db_manager.execute_query("SELECT COUNT(*) FROM email_analysis", fetch='one')[0] if self.db_manager.execute_query("SELECT COUNT(*) FROM email_analysis", fetch='one') else 0
+                result['emails'] = 0  # Email analysis table removed
             except:
                 pass
             

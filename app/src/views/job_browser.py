@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Any
 import logging
 import json
 from views.base_view import BaseView
-from database_manager import get_db_manager
+from src.database.database_manager import get_db_manager
 
 class JobBrowserView(BaseView):
     """View for browsing all discovered jobs with enhanced features."""
@@ -32,6 +32,19 @@ class JobBrowserView(BaseView):
         """Show the job browser interface."""
         st.markdown("# 🔍 Job Browser")
         st.markdown("Browse all discovered jobs with AI-enhanced insights and management tools.")
+        
+        # Add some CSS for better navigation experience
+        st.markdown("""
+        <style>
+        .stButton > button {
+            border-radius: 5px;
+            font-weight: 500;
+        }
+        .stProgress > div > div > div > div {
+            background-color: #1f77b4;
+        }
+        </style>
+        """, unsafe_allow_html=True)
     
         # Filters and controls
         self._show_filters()
@@ -160,31 +173,6 @@ class JobBrowserView(BaseView):
             location_index = location_options.index(current_location_filter) if current_location_filter in location_options else 0
             selected_location = st.selectbox("📍 Location", location_options, index=location_index)
             
-            # Add debug info for location filter
-            with st.expander("🔧 Debug: Location Filter", expanded=False):
-                st.write(f"Database locations found: {len(db_locations)}")
-                st.write(f"Common cities: {len(common_cities)}")
-                st.write(f"Total location options: {len(location_options)}")
-                st.write(f"Current filter: {current_location_filter}")
-                st.write(f"Sample locations: {location_options[:10]}")
-                
-                # Show actual database locations
-                if db_locations:
-                    st.write(f"**Database locations:** {db_locations[:20]}")
-                
-                # Test the current filter
-                if current_location_filter and current_location_filter != "All Locations":
-                    st.write(f"**Testing filter:** '{current_location_filter}'")
-                    # Show how many jobs match this location
-                    try:
-                        test_query = "SELECT COUNT(*) FROM job_listings WHERE LOWER(location) LIKE LOWER(%s)"
-                        test_param = f"%{current_location_filter}%"
-                        test_result = self.db_manager.execute_query(test_query, (test_param,), fetch='one')
-                        match_count = test_result[0] if test_result else 0
-                        st.write(f"**Jobs matching '{current_location_filter}':** {match_count}")
-                    except Exception as e:
-                        st.write(f"**Error testing filter:** {e}")
-
         with col2:
             sort_options = ["Newest First", "Quality Score", "Relevance Score", "Company A-Z"]
             current_sort_filter = st.session_state.get('job_browser_filters', {}).get('sort', 'Newest First')
@@ -192,7 +180,7 @@ class JobBrowserView(BaseView):
             selected_sort = st.selectbox("📊 Sort By", sort_options, index=sort_index)
         
         # Store filters in session state
-        st.session_state.job_browser_filters = {
+        new_filters = {
             'date': selected_date,
             'status': selected_status,
             'source': selected_source,
@@ -203,40 +191,15 @@ class JobBrowserView(BaseView):
             'search_company': search_company
         }
         
-        # Add debug info for all filters
-        with st.expander("🔧 Debug: All Filters", expanded=False):
-            st.write(f"**Current filters:** {st.session_state.job_browser_filters}")
-            st.write(f"**Source filter:** {selected_source}")
-            st.write(f"**Location filter:** {selected_location}")
-            
-            # Show search status
-            if search_title or search_company:
-                st.write("**🔍 Active Search Filters:**")
-                if search_title:
-                    st.write(f"  - Job Title: '{search_title}'")
-                if search_company:
-                    st.write(f"  - Company: '{search_company}'")
-            
-            # Test combined filters
-            if selected_source != "All Sources" or selected_location != "All Locations":
-                try:
-                    test_query = "SELECT COUNT(*) FROM job_listings WHERE 1=1"
-                    test_params = []
-                    
-                    if selected_source != "All Sources":
-                        test_query += " AND source = %s"
-                        test_params.append(selected_source)
-                    
-                    if selected_location != "All Locations":
-                        test_query += " AND LOWER(location) LIKE LOWER(%s)"
-                        test_params.append(f"%{selected_location}%")
-                    
-                    test_result = self.db_manager.execute_query(test_query, test_params, fetch='one')
-                    match_count = test_result[0] if test_result else 0
-                    st.write(f"**Jobs matching combined filters:** {match_count}")
-                    
-                except Exception as e:
-                    st.write(f"**Error testing combined filters:** {e}")
+        # Check if filters have changed
+        old_filters = st.session_state.get('job_browser_filters', {})
+        filters_changed = new_filters != old_filters
+        
+        st.session_state.job_browser_filters = new_filters
+        
+        # Reset pagination when filters change
+        if filters_changed:
+            st.session_state.current_page = 1
         
         # Refresh button
         with col3:
@@ -303,7 +266,7 @@ class JobBrowserView(BaseView):
                     llm_relevance_score, llm_reasoning,
                     CASE 
                         WHEN url IN (SELECT url FROM job_applications) THEN 'applied'
-                        WHEN url IN (SELECT url FROM ignored_jobs) THEN 'ignored'
+                        WHEN id IN (SELECT job_listing_id FROM ignored_jobs) THEN 'ignored'
                         ELSE 'available'
                     END as job_status
                 FROM job_listings 
@@ -327,16 +290,16 @@ class JobBrowserView(BaseView):
             status_filter = filters.get('status')
             
             if status_filter == "🙈 Ignored":
-                base_query += " AND url IN (SELECT url FROM ignored_jobs)"
+                base_query += " AND id IN (SELECT job_listing_id FROM ignored_jobs)"
             elif status_filter == "✅ Approved Only":
                 # Show only approved jobs that are NOT applied and NOT ignored
                 base_query += " AND (llm_filtered = false OR llm_filtered IS NULL)"
                 base_query += " AND url NOT IN (SELECT url FROM job_applications)"
-                base_query += " AND url NOT IN (SELECT url FROM ignored_jobs)"
+                base_query += " AND id NOT IN (SELECT job_listing_id FROM ignored_jobs)"
             elif status_filter == "🚫 Filtered Only":
                 # Show only filtered jobs that are NOT ignored
                 base_query += " AND llm_filtered = true"
-                base_query += " AND url NOT IN (SELECT url FROM ignored_jobs)"
+                base_query += " AND id NOT IN (SELECT job_listing_id FROM ignored_jobs)"
             elif status_filter == "📝 Applied":
                 # Show only applied jobs
                 base_query += " AND url IN (SELECT url FROM job_applications)"
@@ -389,75 +352,6 @@ class JobBrowserView(BaseView):
                 base_query += " ORDER BY scraped_date DESC"
             
             result = self.db_manager.execute_query(base_query, params, fetch='all')
-            
-            # Debug: Show the query and parameters
-            if st.session_state.get('job_browser_filters', {}).get('location') and st.session_state.get('job_browser_filters', {}).get('location') != "All Locations":
-                with st.expander("🔧 Debug: SQL Query", expanded=False):
-                    st.write(f"**Location filter:** {st.session_state.get('job_browser_filters', {}).get('location')}")
-                    st.write(f"**Source filter:** {st.session_state.get('job_browser_filters', {}).get('source')}")
-                    st.write(f"**SQL Query:** {base_query}")
-                    st.write(f"**Parameters:** {params}")
-                    st.write(f"**Results found:** {len(result) if result else 0}")
-            
-            # Debug: Show combined filter test
-            if (st.session_state.get('job_browser_filters', {}).get('source') and 
-                st.session_state.get('job_browser_filters', {}).get('source') != "All Sources" and
-                st.session_state.get('job_browser_filters', {}).get('location') and 
-                st.session_state.get('job_browser_filters', {}).get('location') != "All Locations"):
-                
-                with st.expander("🔧 Debug: Combined Filter Test", expanded=False):
-                    source_filter = st.session_state.get('job_browser_filters', {}).get('source')
-                    location_filter = st.session_state.get('job_browser_filters', {}).get('location')
-                    
-                    # Test source filter alone
-                    source_query = "SELECT COUNT(*) FROM job_listings WHERE source = %s"
-                    source_result = self.db_manager.execute_query(source_query, (source_filter,), fetch='one')
-                    source_count = source_result[0] if source_result else 0
-                    
-                    # Test location filter alone
-                    location_query = "SELECT COUNT(*) FROM job_listings WHERE LOWER(location) LIKE LOWER(%s)"
-                    location_param = f"%{location_filter}%"
-                    location_result = self.db_manager.execute_query(location_query, (location_param,), fetch='one')
-                    location_count = location_result[0] if location_result else 0
-                    
-                    # Test combined filter
-                    combined_query = "SELECT COUNT(*) FROM job_listings WHERE source = %s AND LOWER(location) LIKE LOWER(%s)"
-                    combined_result = self.db_manager.execute_query(combined_query, (source_filter, location_param), fetch='one')
-                    combined_count = combined_result[0] if combined_result else 0
-                    
-                    st.write(f"**Source '{source_filter}' alone:** {source_count} jobs")
-                    st.write(f"**Location '{location_filter}' alone:** {location_count} jobs")
-                    st.write(f"**Combined filter:** {combined_count} jobs")
-                    st.write(f"**Actual results:** {len(result) if result else 0} jobs")
-            
-            # Debug: Show status filter breakdown
-            status_filter = st.session_state.get('job_browser_filters', {}).get('status')
-            if status_filter in ["✅ Approved Only", "📝 Applied"]:
-                with st.expander("🔧 Debug: Status Filter", expanded=False):
-                    st.write(f"**Current status filter:** {status_filter}")
-                    
-                    # Test approved jobs count
-                    approved_query = """
-                        SELECT COUNT(*) FROM job_listings 
-                        WHERE (llm_filtered = false OR llm_filtered IS NULL)
-                        AND url NOT IN (SELECT url FROM ignored_jobs)
-                        AND url NOT IN (SELECT url FROM job_applications)
-                    """
-                    approved_result = self.db_manager.execute_query(approved_query, fetch='one')
-                    approved_count = approved_result[0] if approved_result else 0
-                    
-                    # Test applied jobs count
-                    applied_query = """
-                        SELECT COUNT(*) FROM job_listings 
-                        WHERE url IN (SELECT url FROM job_applications)
-                        AND url NOT IN (SELECT url FROM ignored_jobs)
-                    """
-                    applied_result = self.db_manager.execute_query(applied_query, fetch='one')
-                    applied_count = applied_result[0] if applied_result else 0
-                    
-                    st.write(f"**Approved jobs (not applied):** {approved_count}")
-                    st.write(f"**Applied jobs:** {applied_count}")
-                    st.write(f"**Results in current view:** {len(result) if result else 0}")
             
             if result:
                 columns = [
@@ -564,23 +458,317 @@ class JobBrowserView(BaseView):
         
         st.divider()
         
-        # Pagination
-        jobs_per_page = 10
+        # Enhanced Pagination
+        jobs_per_page = st.session_state.get('jobs_per_page', 10)
         total_pages = (len(df) - 1) // jobs_per_page + 1
+        current_page = st.session_state.get('current_page', 1)
         
+        # Store user preference for jobs per page
+        if 'jobs_per_page' not in st.session_state:
+            st.session_state.jobs_per_page = 10
+        
+        # Ensure current page is within valid range
+        if current_page > total_pages:
+            current_page = 1
+        if current_page < 1:
+            current_page = 1
+        
+        # Pagination controls
         if total_pages > 1:
-            col1, col2, col3 = st.columns([1, 2, 1])
+            st.markdown("### 📄 Navigation")
+            
+            # Page size selector
+            col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 1])
+            
+            with col1:
+                new_jobs_per_page = st.selectbox(
+                    "Jobs per page",
+                    [5, 10, 15, 20, 25, 50],
+                    index=[5, 10, 15, 20, 25, 50].index(jobs_per_page),
+                    key="jobs_per_page_selector"
+                )
+                if new_jobs_per_page != jobs_per_page:
+                    st.session_state.jobs_per_page = new_jobs_per_page
+                    st.session_state.current_page = 1
+                    st.rerun()
+            
             with col2:
-                page = st.selectbox("📄 Page", range(1, total_pages + 1)) - 1
+                st.markdown(f"**Page {current_page} of {total_pages}**")
+            
+            with col3:
+                st.markdown(f"**Showing {len(df)} total jobs**")
+            
+            # Navigation buttons
+            nav_col1, nav_col2, nav_col3, nav_col4, nav_col5 = st.columns([1, 1, 1, 1, 1])
+            
+            with nav_col1:
+                if st.button("⏮️ First", disabled=current_page == 1, use_container_width=True):
+                    st.session_state.current_page = 1
+                    st.rerun()
+            
+            with nav_col2:
+                if st.button("◀️ Previous", disabled=current_page == 1, use_container_width=True):
+                    st.session_state.current_page = current_page - 1
+                    st.rerun()
+            
+            with nav_col3:
+                # Page number input
+                new_page = st.number_input(
+                    "Go to page",
+                    min_value=1,
+                    max_value=total_pages,
+                    value=current_page,
+                    key="page_input"
+                )
+                if new_page != current_page:
+                    st.session_state.current_page = new_page
+                    st.rerun()
+            
+            with nav_col4:
+                if st.button("Next ▶️", disabled=current_page == total_pages, use_container_width=True):
+                    st.session_state.current_page = current_page + 1
+                    st.rerun()
+            
+            with nav_col5:
+                if st.button("Last ⏭️", disabled=current_page == total_pages, use_container_width=True):
+                    st.session_state.current_page = total_pages
+                    st.rerun()
+            
+            # Page jump shortcuts for large datasets
+            if total_pages > 10:
+                st.markdown("**Quick Navigation:**")
+                quick_nav_cols = st.columns(min(10, total_pages))
+                
+                # Show first 5 pages, last 5 pages, and current page vicinity
+                pages_to_show = set()
+                pages_to_show.update(range(1, min(6, total_pages + 1)))  # First 5 pages
+                pages_to_show.update(range(max(1, current_page - 2), min(total_pages + 1, current_page + 3)))  # Current page vicinity
+                pages_to_show.update(range(max(1, total_pages - 4), total_pages + 1))  # Last 5 pages
+                
+                pages_to_show = sorted(list(pages_to_show))
+                
+                for i, page_num in enumerate(pages_to_show):
+                    if i < len(quick_nav_cols):
+                        with quick_nav_cols[i]:
+                            if st.button(
+                                f"📄 {page_num}",
+                                key=f"quick_nav_{page_num}",
+                                use_container_width=True,
+                                type="secondary" if page_num == current_page else "primary"
+                            ):
+                                st.session_state.current_page = page_num
+                                st.rerun()
+            
+            # Jump to specific job feature
+            st.markdown("**🔍 Jump to Job:**")
+            jump_col1, jump_col2 = st.columns([2, 1])
+            
+            with jump_col1:
+                job_search_term = st.text_input(
+                    "Search for a specific job by title or company",
+                    placeholder="e.g., 'System Administrator' or 'Google'",
+                    key="job_search_jump"
+                )
+            
+            with jump_col2:
+                if st.button("🔍 Find Job", use_container_width=True):
+                    if job_search_term.strip():
+                        self._jump_to_job(df, job_search_term.strip())
+            
+            # Keyboard navigation hints
+            st.markdown("**⌨️ Navigation Tips:**")
+            st.markdown("- Use the **Previous/Next** buttons or **page input** to navigate")
+            st.markdown("- **Quick Navigation** buttons for jumping to specific pages")
+            st.markdown("- **Jobs per page** selector to adjust view size")
+            st.markdown("- **Jump to Job** to find specific positions quickly")
+            
+            st.divider()
         else:
-            page = 0
+            current_page = 1
         
-        start_idx = page * jobs_per_page
+        # Calculate page data
+        start_idx = (current_page - 1) * jobs_per_page
         end_idx = start_idx + jobs_per_page
         page_df = df.iloc[start_idx:end_idx]
         
+        # Show current page info with progress bar
+        if total_pages > 1:
+            # Progress bar for page navigation
+            progress = current_page / total_pages
+            st.progress(progress, text=f"📄 Page {current_page} of {total_pages}")
+            
+            # Page info
+            st.info(f"📄 **Page {current_page} of {total_pages}** - Showing jobs {start_idx + 1} to {min(end_idx, len(df))} of {len(df)} total jobs")
+            
+            # Navigation status
+            if current_page == 1:
+                st.success("📍 You're on the first page")
+            elif current_page == total_pages:
+                st.success("📍 You're on the last page")
+            else:
+                st.info(f"📍 {total_pages - current_page} pages remaining")
+            
+            # Page summary
+            page_jobs = page_df
+            if not page_jobs.empty:
+                approved_count = len(page_jobs[page_jobs['llm_filtered'] == False])
+                filtered_count = len(page_jobs[page_jobs['llm_filtered'] == True])
+                applied_count = len(page_jobs[page_jobs['job_status'] == 'applied'])
+                
+                summary_cols = st.columns(4)
+                with summary_cols[0]:
+                    st.metric("Jobs on this page", len(page_jobs))
+                with summary_cols[1]:
+                    st.metric("✅ Approved", approved_count)
+                with summary_cols[2]:
+                    st.metric("🚫 Filtered", filtered_count)
+                with summary_cols[3]:
+                    st.metric("📝 Applied", applied_count)
+        
         for idx, job in page_df.iterrows():
             self._display_job_card(job, idx)
+        
+        # Bottom navigation controls
+        if total_pages > 1:
+            st.markdown("---")
+            st.markdown("### 📄 Bottom Navigation")
+            
+            # Bottom page size selector
+            bottom_col1, bottom_col2, bottom_col3, bottom_col4, bottom_col5 = st.columns([1, 1, 1, 1, 1])
+            
+            with bottom_col1:
+                bottom_jobs_per_page = st.selectbox(
+                    "Jobs per page",
+                    [5, 10, 15, 20, 25, 50],
+                    index=[5, 10, 15, 20, 25, 50].index(jobs_per_page),
+                    key="bottom_jobs_per_page_selector"
+                )
+                if bottom_jobs_per_page != jobs_per_page:
+                    st.session_state.jobs_per_page = bottom_jobs_per_page
+                    st.session_state.current_page = 1
+                    st.rerun()
+            
+            with bottom_col2:
+                st.markdown(f"**Page {current_page} of {total_pages}**")
+            
+            with bottom_col3:
+                st.markdown(f"**Showing {len(df)} total jobs**")
+            
+            # Bottom navigation buttons
+            bottom_nav_col1, bottom_nav_col2, bottom_nav_col3, bottom_nav_col4, bottom_nav_col5 = st.columns([1, 1, 1, 1, 1])
+            
+            with bottom_nav_col1:
+                if st.button("⏮️ First", disabled=current_page == 1, use_container_width=True, key="bottom_first"):
+                    st.session_state.current_page = 1
+                    st.rerun()
+            
+            with bottom_nav_col2:
+                if st.button("◀️ Previous", disabled=current_page == 1, use_container_width=True, key="bottom_previous"):
+                    st.session_state.current_page = current_page - 1
+                    st.rerun()
+            
+            with bottom_nav_col3:
+                # Bottom page number input
+                bottom_new_page = st.number_input(
+                    "Go to page",
+                    min_value=1,
+                    max_value=total_pages,
+                    value=current_page,
+                    key="bottom_page_input"
+                )
+                if bottom_new_page != current_page:
+                    st.session_state.current_page = bottom_new_page
+                    st.rerun()
+            
+            with bottom_nav_col4:
+                if st.button("Next ▶️", disabled=current_page == total_pages, use_container_width=True, key="bottom_next"):
+                    st.session_state.current_page = current_page + 1
+                    st.rerun()
+            
+            with bottom_nav_col5:
+                if st.button("Last ⏭️", disabled=current_page == total_pages, use_container_width=True, key="bottom_last"):
+                    st.session_state.current_page = total_pages
+                    st.rerun()
+            
+            # Bottom quick navigation for large datasets
+            if total_pages > 10:
+                st.markdown("**Quick Navigation:**")
+                bottom_quick_nav_cols = st.columns(min(10, total_pages))
+                
+                # Show first 5 pages, last 5 pages, and current page vicinity
+                bottom_pages_to_show = set()
+                bottom_pages_to_show.update(range(1, min(6, total_pages + 1)))  # First 5 pages
+                bottom_pages_to_show.update(range(max(1, current_page - 2), min(total_pages + 1, current_page + 3)))  # Current page vicinity
+                bottom_pages_to_show.update(range(max(1, total_pages - 4), total_pages + 1))  # Last 5 pages
+                
+                bottom_pages_to_show = sorted(list(bottom_pages_to_show))
+                
+                for i, page_num in enumerate(bottom_pages_to_show):
+                    if i < len(bottom_quick_nav_cols):
+                        with bottom_quick_nav_cols[i]:
+                            if st.button(
+                                f"📄 {page_num}",
+                                key=f"bottom_quick_nav_{page_num}",
+                                use_container_width=True,
+                                type="secondary" if page_num == current_page else "primary"
+                            ):
+                                st.session_state.current_page = page_num
+                                st.rerun()
+            
+            # Bottom jump to job feature
+            st.markdown("**🔍 Jump to Job:**")
+            bottom_jump_col1, bottom_jump_col2 = st.columns([2, 1])
+            
+            with bottom_jump_col1:
+                bottom_job_search_term = st.text_input(
+                    "Search for a specific job by title or company",
+                    placeholder="e.g., 'System Administrator' or 'Google'",
+                    key="bottom_job_search_jump"
+                )
+            
+            with bottom_jump_col2:
+                if st.button("🔍 Find Job", use_container_width=True, key="bottom_find_job"):
+                    if bottom_job_search_term.strip():
+                        self._jump_to_job(df, bottom_job_search_term.strip())
+            
+            # Bottom progress bar
+            bottom_progress = current_page / total_pages
+            st.progress(bottom_progress, text=f"📄 Page {current_page} of {total_pages}")
+            
+            # Bottom page info
+            st.info(f"📄 **Page {current_page} of {total_pages}** - Showing jobs {start_idx + 1} to {min(end_idx, len(df))} of {len(df)} total jobs")
+            
+            # Bottom navigation status
+            if current_page == 1:
+                st.success("📍 You're on the first page")
+            elif current_page == total_pages:
+                st.success("📍 You're on the last page")
+            else:
+                st.info(f"📍 {total_pages - current_page} pages remaining")
+            
+            # Bottom page summary
+            if not page_df.empty:
+                bottom_approved_count = len(page_df[page_df['llm_filtered'] == False])
+                bottom_filtered_count = len(page_df[page_df['llm_filtered'] == True])
+                bottom_applied_count = len(page_df[page_df['job_status'] == 'applied'])
+                
+                bottom_summary_cols = st.columns(4)
+                with bottom_summary_cols[0]:
+                    st.metric("Jobs on this page", len(page_df))
+                with bottom_summary_cols[1]:
+                    st.metric("✅ Approved", bottom_approved_count)
+                with bottom_summary_cols[2]:
+                    st.metric("🚫 Filtered", bottom_filtered_count)
+                with bottom_summary_cols[3]:
+                    st.metric("📝 Applied", bottom_applied_count)
+        
+        # Back to top button for long pages
+        if total_pages > 1 and len(page_df) > 5:
+            st.markdown("---")
+            col1, col2, col3 = st.columns([1, 1, 1])
+            with col2:
+                if st.button("⬆️ Back to Top", use_container_width=True, key="back_to_top"):
+                    st.rerun()
     
     def _display_job_card(self, job: pd.Series, idx: int):
         """Display individual job card with enhanced features."""
@@ -687,7 +875,7 @@ class JobBrowserView(BaseView):
                 
                 # Action buttons
                 st.markdown("**Actions:**")
-                col1, col2, col3, col4, col5, col6 = st.columns(6)
+                col1, col2, col3, col4, col5 = st.columns(5)
                 
                 job_url = job.get('url', '')
                 current_status = job.get('job_status', 'available')
@@ -715,14 +903,10 @@ class JobBrowserView(BaseView):
                         st.success("🙈 Ignored")
                 
                 with col4:
-                    # Email matching functionality disabled
-                    st.button("📧 Match Emails (Disabled)", key=f"email_{job_id}_{idx}", use_container_width=True, disabled=True)
-                
-                with col5:
                     if st.button("🔄 Enhance", key=f"enhance_{job_id}_{idx}", use_container_width=True):
                         self._enhance_job_with_llm(job, idx)
                 
-                with col6:
+                with col5:
                     if st.button("📋 Full Details", key=f"details_{job_id}_{idx}", use_container_width=True):
                         self._show_full_job_details(job)
                 
@@ -814,8 +998,8 @@ class JobBrowserView(BaseView):
                 st.warning("🚫 Cannot ignore filtered jobs. Filtered jobs should remain in the '🚫 Filtered Only' view for review.")
                 return
             
-            existing_query = "SELECT id FROM ignored_jobs WHERE url = %s"
-            existing = self.db_manager.execute_query(existing_query, (job.get('url'),), fetch='one')
+            existing_query = "SELECT id FROM ignored_jobs WHERE job_listing_id = %s"
+            existing = self.db_manager.execute_query(existing_query, (job.get('id'),), fetch='one')
             
             if existing:
                 st.warning("👁️ Job already ignored!")
@@ -823,12 +1007,12 @@ class JobBrowserView(BaseView):
             
             insert_query = """
                 INSERT INTO ignored_jobs (
-                    job_listing_id, url, reason, ignored_at
-                ) VALUES (%s, %s, %s, %s)
+                    job_listing_id, reason, ignored_at
+                ) VALUES (%s, %s, %s)
             """
             
             params = (
-                job.get('id'), job.get('url', ''), 
+                job.get('id'), 
                 f"Ignored from Job Browser - Quality: {job.get('llm_quality_score', 'N/A')}/10",
                 datetime.now()
             )
@@ -841,29 +1025,9 @@ class JobBrowserView(BaseView):
             self.logger.error(f"Error ignoring job: {e}")
             st.error(f"Error ignoring job: {e}")
     
-    def _search_matching_emails_disabled(self, job: pd.Series):
-        """Email matching functionality disabled - no longer available."""
-        st.info("📧 Email matching functionality has been disabled in this version.")
+
     
-    def _link_email_to_job(self, email_id: str, job: pd.Series):
-        """Link an email to a job application."""
-        try:
-            update_query = """
-                UPDATE email_analysis 
-                SET application_id = %s, position_title = %s
-                WHERE id = %s
-            """
-            
-            self.db_manager.execute_query(
-                update_query, 
-                (str(job.get('id')), job.get('title'), email_id)
-            )
-            
-            st.success("🔗 Email linked to job!")
-            
-        except Exception as e:
-            self.logger.error(f"Error linking email: {e}")
-            st.error(f"Error linking email: {e}")
+
     
     def _enhance_job_with_llm(self, job: pd.Series, idx: int):
         """Enhance job with additional LLM analysis."""
@@ -959,28 +1123,42 @@ class JobBrowserView(BaseView):
                 st.warning(f"⚠️ {len(already_ignored)} jobs are already ignored.")
             
             if not non_filtered_jobs.empty:
-                # Bulk insert ignored jobs
-                insert_query = """
-                    INSERT INTO ignored_jobs (
-                        job_listing_id, url, reason, ignored_at
-                    ) VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (url) DO NOTHING
-                """
+                # Check for existing ignored jobs to avoid duplicates
+                existing_ignored_query = "SELECT job_listing_id FROM ignored_jobs WHERE job_listing_id IN %s"
+                existing_job_ids = tuple(non_filtered_jobs['id'].tolist())
                 
-                params_list = []
-                for _, job in non_filtered_jobs.iterrows():
-                    params_list.append((
-                        job.get('id'), 
-                        job.get('url', ''), 
-                        f"Bulk ignored from Job Browser - Quality: {job.get('llm_quality_score', 'N/A')}/10",
-                        datetime.now()
-                    ))
+                existing_results = self.db_manager.execute_query(existing_ignored_query, (existing_job_ids,), fetch='all')
+                existing_ignored_ids = {row[0] for row in existing_results} if existing_results else set()
                 
-                # Execute bulk insert
-                for params in params_list:
-                    self.db_manager.execute_query(insert_query, params)
+                # Filter out jobs that are already ignored
+                jobs_to_ignore = non_filtered_jobs[~non_filtered_jobs['id'].isin(existing_ignored_ids)]
                 
-                st.success(f"🙈 Successfully ignored {len(non_filtered_jobs)} jobs!")
+                if not jobs_to_ignore.empty:
+                    # Bulk insert ignored jobs
+                    insert_query = """
+                        INSERT INTO ignored_jobs (
+                            job_listing_id, reason, ignored_at
+                        ) VALUES (%s, %s, %s)
+                    """
+                    
+                    params_list = []
+                    for _, job in jobs_to_ignore.iterrows():
+                        params_list.append((
+                            job.get('id'), 
+                            f"Bulk ignored from Job Browser - Quality: {job.get('llm_quality_score', 'N/A')}/10",
+                            datetime.now()
+                        ))
+                    
+                    # Execute bulk insert
+                    for params in params_list:
+                        self.db_manager.execute_query(insert_query, params)
+                    
+                    st.success(f"🙈 Successfully ignored {len(jobs_to_ignore)} jobs!")
+                else:
+                    st.info("All selected jobs are already ignored.")
+                
+                if existing_ignored_ids:
+                    st.info(f"⚠️ {len(existing_ignored_ids)} jobs were already ignored and skipped.")
                 
                 # Clear selection
                 st.session_state.selected_jobs.clear()
@@ -1023,7 +1201,7 @@ class JobBrowserView(BaseView):
                 status_text.text(f"Fetching details for job {idx + 1}/{len(selected_jobs)}: {job.get('title', 'Unknown')[:50]}...")
                 
                 try:
-                    # Fetch job details with retry
+                    # First try to get from cache
                     details = job_details_cache.get_job_details_with_retry(
                         job_url,
                         force_refresh=False,  # Don't force refresh for bulk operations
@@ -1034,7 +1212,12 @@ class JobBrowserView(BaseView):
                     if details:
                         fetched_count += 1
                     else:
-                        failed_count += 1
+                        # If not in cache, try to fetch using the appropriate scraper
+                        details = self._fetch_job_details_with_scraper(job_url, job.get('source', ''))
+                        if details:
+                            fetched_count += 1
+                        else:
+                            failed_count += 1
                         
                 except Exception as e:
                     self.logger.error(f"Error fetching details for {job_url}: {e}")
@@ -1289,12 +1472,8 @@ class JobBrowserView(BaseView):
             # Import the job details cache service
             from services.job_details_cache import job_details_cache
             
-            # Force refresh the cache
-            fresh_details = job_details_cache.get_job_details_with_retry(
-                job_url, 
-                force_refresh=True,
-                max_retries=3
-            )
+            # Force refresh by fetching with scraper
+            fresh_details = self._fetch_job_details_with_scraper(job_url, '')
             
             if fresh_details:
                 st.success("✅ Job cache refreshed successfully!")
@@ -1355,6 +1534,104 @@ class JobBrowserView(BaseView):
         except Exception as e:
             st.error(f"Error showing cache stats: {e}")
             self.logger.error(f"Error in _show_cache_stats: {e}")
+
+    def _jump_to_job(self, df: pd.DataFrame, search_term: str):
+        """Jump to the page containing a specific job."""
+        try:
+            # Search for jobs matching the term (case-insensitive)
+            matching_jobs = df[
+                df['title'].str.contains(search_term, case=False, na=False) |
+                df['company'].str.contains(search_term, case=False, na=False)
+            ]
+            
+            if matching_jobs.empty:
+                st.warning(f"🔍 No jobs found matching '{search_term}'")
+                return
+            
+            # Get the first matching job
+            first_match = matching_jobs.iloc[0]
+            job_index = df.index.get_loc(first_match.name)
+            
+            # Calculate which page this job is on
+            jobs_per_page = st.session_state.get('jobs_per_page', 10)
+            target_page = (job_index // jobs_per_page) + 1
+            
+            # Jump to that page
+            st.session_state.current_page = target_page
+            
+            # Show success message
+            st.success(f"🔍 Found '{first_match['title']}' at {first_match['company']} - Jumping to page {target_page}")
+            
+            # Rerun to show the page
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"Error jumping to job: {e}")
+            self.logger.error(f"Error in _jump_to_job: {e}")
+
+    def _fetch_job_details_with_scraper(self, job_url: str, source: str) -> Optional[Dict[str, Any]]:
+        """Fetch job details using the appropriate scraper based on the source."""
+        try:
+            # Import scrapers
+            from scrapers.stellenanzeigen_scraper import StellenanzeigenScraper
+            from scrapers.stepstone_scraper import StepstoneScraper
+            from scrapers.indeed_scraper import IndeedScraper
+            from scrapers.linkedin_scraper import LinkedInScraper
+            from scrapers.xing_scraper import XingScraper
+            from scrapers.jobrapido_scraper import JobrapidoScraper
+            from scrapers.meinestadt_scraper import MeinestadtScraper
+            
+            # Determine which scraper to use based on source
+            scraper = None
+            if 'stellenanzeigen' in source.lower():
+                scraper = StellenanzeigenScraper()
+            elif 'stepstone' in source.lower():
+                scraper = StepstoneScraper()
+            elif 'indeed' in source.lower():
+                scraper = IndeedScraper()
+            elif 'linkedin' in source.lower():
+                scraper = LinkedInScraper()
+            elif 'xing' in source.lower():
+                scraper = XingScraper()
+            elif 'jobrapido' in source.lower():
+                scraper = JobrapidoScraper()
+            elif 'meinestadt' in source.lower():
+                scraper = MeinestadtScraper()
+            else:
+                # Try to determine from URL if source is not clear
+                if 'stellenanzeigen.de' in job_url.lower():
+                    scraper = StellenanzeigenScraper()
+                elif 'stepstone.de' in job_url.lower():
+                    scraper = StepstoneScraper()
+                elif 'indeed.com' in job_url.lower():
+                    scraper = IndeedScraper()
+                elif 'linkedin.com' in job_url.lower():
+                    scraper = LinkedInScraper()
+                elif 'xing.com' in job_url.lower():
+                    scraper = XingScraper()
+                elif 'jobrapido.com' in job_url.lower():
+                    scraper = JobrapidoScraper()
+                elif 'meinestadt.de' in job_url.lower():
+                    scraper = MeinestadtScraper()
+            
+            if scraper:
+                self.logger.info(f"Fetching job details using {scraper.__class__.__name__} for: {job_url}")
+                details = scraper.fetch_job_details(job_url)
+                if details:
+                    # Cache the fetched details
+                    from services.job_details_cache import job_details_cache
+                    job_details_cache.cache_job_details(job_url, details, is_valid=True)
+                    return details
+                else:
+                    self.logger.warning(f"Failed to fetch job details using {scraper.__class__.__name__} for: {job_url}")
+            else:
+                self.logger.warning(f"No suitable scraper found for source '{source}' and URL: {job_url}")
+            
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error fetching job details with scraper for {job_url}: {e}")
+            return None
 
     def _test_combined_filters(self):
         """Test the combined source and location filters."""

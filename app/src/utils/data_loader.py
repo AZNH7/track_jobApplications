@@ -13,8 +13,12 @@ class DataLoader:
     def load_job_data(self):
         """Load job data from database"""
         try:
-            engine = self.db_manager.get_sqlalchemy_engine()
-            return pd.read_sql_query("SELECT * FROM job_listings ORDER BY scraped_date DESC", engine)
+            # Use the new modular structure to get job listings
+            job_listings = self.db_manager.job_listings.get_all_jobs()
+            if job_listings:
+                return pd.DataFrame(job_listings)
+            else:
+                return pd.DataFrame()
         except Exception as e:
             st.error(f"Error loading job data: {e}")
             return pd.DataFrame()
@@ -22,7 +26,12 @@ class DataLoader:
     def load_applications_data(self):
         """Load job applications data"""
         try:
-            return pd.DataFrame(self.db_manager.get_applications())
+            # Use the new modular structure to get applications
+            applications = self.db_manager.job_applications.get_all_applications()
+            if applications:
+                return pd.DataFrame(applications)
+            else:
+                return pd.DataFrame()
         except Exception as e:
             st.error(f"Error loading applications: {str(e)}")
             return pd.DataFrame()
@@ -30,15 +39,6 @@ class DataLoader:
     def get_data_date_range(self):
         """Get date range for available data"""
         try:
-            # Get email date range
-            email_query = """
-                SELECT 
-                    MIN(date) as earliest,
-                    MAX(date) as latest
-                FROM email_analysis
-            """
-            email_range = self.db_manager.execute_query(email_query, fetch='one')
-            
             # Get job listings date range
             job_query = """
                 SELECT 
@@ -49,10 +49,6 @@ class DataLoader:
             job_range = self.db_manager.execute_query(job_query, fetch='one')
             
             return {
-                'email_range': {
-                    'earliest': email_range[0] if email_range else None,
-                    'latest': email_range[1] if email_range else None
-                },
                 'job_range': {
                     'earliest': job_range[0] if job_range else None,
                     'latest': job_range[1] if job_range else None
