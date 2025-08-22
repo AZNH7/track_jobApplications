@@ -9,21 +9,20 @@ services:
       args:
         - BUILDKIT_INLINE_CACHE=0
     container_name: track_jobapplication-app
-    # Use networks instead of host mode for better cross-platform compatibility
-    networks:
-      - track_jobapplication-network
+    # Use host network to access host services (Ollama, etc.)
+    network_mode: host
     # env_file:
     #   - ../.env
     environment:
       - PYTHONPATH=/app/src
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_DB=${POSTGRES_DB:-jobtracker}
-      - POSTGRES_USER=${POSTGRES_USER:-jobtracker}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-jobtracker_password}
-      - OLLAMA_HOST=http://host.docker.internal:11434
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
-      - FLARESOLVERR_URL=http://flaresolverr-balancer:8190/v1
+      - DB_HOST=${POSTGRES_HOST:-localhost}
+      - DB_PORT=${POSTGRES_PORT:-5432}
+      - DB_NAME=${POSTGRES_DB:-jobtracker}
+      - DB_USER=${POSTGRES_USER:-jobtracker}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-jobtracker_password}
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://localhost:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3:8b}
+      - FLARESOLVERR_URL=http://localhost:8190/v1
       - STREAMLIT_SERVER_FILEWATCHER_ENABLED=false
       - STREAMLIT_SERVER_MAX_UPLOAD_SIZE=1024
       - STREAMLIT_SERVER_WORKERS=8
@@ -31,7 +30,7 @@ services:
       - STREAMLIT_LAYOUT_WIDE=true
       - STREAMLIT_THEME_BASE=light
     ports:
-      - "8502:8501"
+      - "8501:8501"
     volumes:
       - ../shared:/app/shared
       # - ./src:/app/src  # Commented out to use built-in src from Docker image
@@ -62,7 +61,7 @@ services:
       - track_jobapplication_postgres_data:/var/lib/postgresql/data
       - ../shared/postgres-init:/docker-entrypoint-initdb.d
     ports:
-      - "5433:5432"
+      - "5432:5432"
     networks:
       - track_jobapplication-network
     restart: unless-stopped
@@ -78,7 +77,7 @@ services:
     container_name: track_jobapplication-redis
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     ports:
-      - "6380:6379"
+      - "6379:6379"
     volumes:
       - track_jobapplication_redis_data:/data
     networks:
@@ -94,7 +93,7 @@ services:
     image: 21hsmw/flaresolverr:nodriver
     container_name: track_jobapplication-flaresolverr-1
     ports:
-      - "8196:8191"
+      - "8191:8191"
     networks:
       - track_jobapplication-network
     restart: unless-stopped
@@ -108,7 +107,7 @@ services:
     image: 21hsmw/flaresolverr:nodriver
     container_name: track_jobapplication-flaresolverr-2
     ports:
-      - "8197:8191"
+      - "8192:8191"
     networks:
       - track_jobapplication-network
     restart: unless-stopped
@@ -122,7 +121,7 @@ services:
     image: 21hsmw/flaresolverr:nodriver
     container_name: track_jobapplication-flaresolverr-3
     ports:
-      - "8198:8191"
+      - "8193:8191"
     networks:
       - track_jobapplication-network
     restart: unless-stopped
@@ -136,7 +135,7 @@ services:
     image: 21hsmw/flaresolverr:nodriver
     container_name: track_jobapplication-flaresolverr-4
     ports:
-      - "8199:8191"
+      - "8194:8191"
     networks:
       - track_jobapplication-network
     restart: unless-stopped
@@ -150,7 +149,7 @@ services:
     image: 21hsmw/flaresolverr:nodriver
     container_name: track_jobapplication-flaresolverr-5
     ports:
-      - "8200:8191"
+      - "8195:8191"
     networks:
       - track_jobapplication-network
     restart: unless-stopped
@@ -160,6 +159,8 @@ services:
     cap_add:
       - SYS_ADMIN
 
+
+
   flaresolverr-balancer:
     image: nginx:alpine
     container_name: track_jobapplication-flaresolverr-balancer
@@ -167,7 +168,7 @@ services:
       - ./nginx-flaresolverr.conf:/etc/nginx/nginx.conf:ro
       - ./disable-ipv6.sh:/disable-ipv6.sh:ro
     ports:
-      - "8201:8190"
+      - "8190:8190"
     networks:
       - track_jobapplication-network
     environment:

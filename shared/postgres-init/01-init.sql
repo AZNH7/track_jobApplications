@@ -44,18 +44,6 @@ WHERE schemaname = 'job_tracker';
 SELECT 'Job Tracker PostgreSQL database initialized successfully!' as message;
 
 -- Add new tables
-CREATE TABLE email_analysis (
-    id VARCHAR(255) PRIMARY KEY,
-    date TIMESTAMP WITH TIME ZONE,
-    subject TEXT,
-    sender TEXT,
-    company VARCHAR(255),
-    category VARCHAR(100),
-    body_preview TEXT,
-    application_id VARCHAR(255),
-    position_title VARCHAR(255),
-    email_hash VARCHAR(64) UNIQUE
-);
 
 CREATE TABLE job_listings (
     id SERIAL PRIMARY KEY,

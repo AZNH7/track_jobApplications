@@ -36,7 +36,7 @@ except ImportError:
     from utils import JobFilters
 
 try:
-    from database_manager import get_db_manager
+    from src.database.database_manager import get_db_manager
 except ImportError:
     # Fallback for when these modules are not available
     def get_db_manager() -> Any:
