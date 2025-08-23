@@ -74,8 +74,12 @@ if not exist ".env" (
     echo [INFO] Creating .env file from template...
     if exist "app\env.template" (
         copy "app\env.template" ".env" >nul
-        echo [WARNING] Please edit .env file with your LinkedIn credentials before starting the application
+        echo [WARNING] Please edit .env file with your LinkedIn credentials, otherwise LinkedIn public API will be used.
     ) else (
+        REM Generate a secure random password for Windows
+        for /f "tokens=*" %%i in ('powershell -Command "[System.Web.Security.Membership]::GeneratePassword(25, 5)"') do set POSTGRES_PASSWORD=%%i
+        echo [INFO] Generated secure PostgreSQL password
+        
         (
             echo # LinkedIn Authentication ^(required for LinkedIn job scraping^)
             echo LINKEDIN_LI_AT="Your_long_cookie_string_goes_here"
@@ -85,7 +89,7 @@ if not exist ".env" (
             echo POSTGRES_PORT=5432
             echo POSTGRES_DB=jobtracker
             echo POSTGRES_USER=jobtracker
-            echo POSTGRES_PASSWORD=secure_password_2024
+            echo POSTGRES_PASSWORD=!POSTGRES_PASSWORD!
             echo.
             echo # Redis Configuration
             echo REDIS_HOST=localhost
@@ -103,7 +107,7 @@ if not exist ".env" (
             echo DATA_IMPORT_PATH=./imports
             echo CACHE_DURATION=300
         ) > .env
-        echo [WARNING] Created .env file. Please edit it with your configuration before starting.
+        echo [WARNING] Created .env file with secure password. Please edit it with your configuration before starting.
     )
 ) else (
     echo [SUCCESS] .env file already exists

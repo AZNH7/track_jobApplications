@@ -91,7 +91,11 @@ main() {
             cp app/env.template .env
             print_warning "Please edit .env file with your LinkedIn credentials before starting the application"
         else
-            cat > .env << 'EOF'
+            # Generate a secure random password
+            POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
+            print_status "Generated secure PostgreSQL password"
+            
+            cat > .env << EOF
 # LinkedIn Authentication (required for LinkedIn job scraping)
 LINKEDIN_LI_AT="Your_long_cookie_string_goes_here"
 
@@ -100,7 +104,7 @@ POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 POSTGRES_DB=jobtracker
 POSTGRES_USER=jobtracker
-POSTGRES_PASSWORD=secure_password_2024
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 
 # Redis Configuration
 REDIS_HOST=localhost
@@ -118,7 +122,7 @@ DATA_EXPORT_PATH=./exports
 DATA_IMPORT_PATH=./imports
 CACHE_DURATION=300
 EOF
-            print_warning "Created .env file. Please edit it with your configuration before starting."
+            print_warning "Created .env file with secure password. Please edit it with your configuration before starting."
         fi
     else
         print_success ".env file already exists"
