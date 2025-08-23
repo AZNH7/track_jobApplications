@@ -150,19 +150,19 @@ REM Start the application
 echo [INFO] Starting Job Application Tracker...
 cd app
 
-echo [INFO] Building and starting containers...
+echo [INFO] Building and starting containers with Windows-compatible configuration...
 echo [NOTE] This may take several minutes. Please wait...
-%DOCKER_COMPOSE% up -d --build
+%DOCKER_COMPOSE% -f docker-compose.windows.yml up -d --build
 
 REM Wait for services to be ready
 echo [INFO] Waiting for services to start...
 timeout /t 30 >nul
 
 REM Check if services are running
-%DOCKER_COMPOSE% ps | findstr "Up" >nul 2>&1
+%DOCKER_COMPOSE% -f docker-compose.windows.yml ps | findstr "Up" >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] Some services failed to start. Check the logs:
-    echo   %DOCKER_COMPOSE% logs
+    echo   %DOCKER_COMPOSE% -f docker-compose.windows.yml logs
 ) else (
     echo [SUCCESS] Job Application Tracker is now running!
     echo.
@@ -174,10 +174,10 @@ if errorlevel 1 (
     echo   3. Visit http://localhost:8501 to start using the application
     echo.
     echo 🔧 Useful commands:
-    echo   - View logs: %DOCKER_COMPOSE% logs -f
-    echo   - Stop application: %DOCKER_COMPOSE% down
-    echo   - Restart application: %DOCKER_COMPOSE% restart
-    echo   - Update application: git pull ^&^& %DOCKER_COMPOSE% up -d --build
+    echo   - View logs: %DOCKER_COMPOSE% -f docker-compose.windows.yml logs -f
+    echo   - Stop application: %DOCKER_COMPOSE% -f docker-compose.windows.yml down
+    echo   - Restart application: %DOCKER_COMPOSE% -f docker-compose.windows.yml restart
+    echo   - Update application: git pull ^&^& %DOCKER_COMPOSE% -f docker-compose.windows.yml up -d --build
 )
 
 echo.
