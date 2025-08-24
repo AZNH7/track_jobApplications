@@ -142,6 +142,57 @@ class EnhancedJobSearchView(BaseView):
             enable_grouping = col3.checkbox("Smart Grouping", loaded_enable_grouping, help="Group similar jobs by company and position")
             deep_scrape = col4.checkbox("Deep Scrape", loaded_deep_scrape, help="Fetch full job descriptions and details (recommended)")
 
+            # AI Job Analysis Configuration
+            st.markdown("#### 🤖 AI Job Analysis Configuration")
+            
+            # Get loaded analysis criteria if available
+            loaded_analysis_criteria = ""
+            loaded_boost_descriptions = ""
+            loaded_relevance_threshold = 5
+            
+            if 'loaded_search' in st.session_state:
+                loaded_analysis_criteria = st.session_state.loaded_search.get('analysis_criteria', '')
+                loaded_boost_descriptions = st.session_state.loaded_search.get('boost_descriptions', '')
+                loaded_relevance_threshold = st.session_state.loaded_search.get('relevance_threshold', 5)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("**Job Analysis Criteria**")
+                analysis_criteria = st.text_area(
+                    "Custom Job Analysis Criteria",
+                    value=loaded_analysis_criteria,
+                    placeholder="Enter your custom job analysis criteria (e.g., 'Focus on Python, DevOps, and cloud technologies. Prefer remote work.')",
+                    help="Describe what types of jobs you want to see and what should be filtered out. This will guide the AI analysis.",
+                    height=100
+                )
+                
+                relevance_threshold = st.slider(
+                    "Relevance Threshold",
+                    min_value=1,
+                    max_value=10,
+                    value=loaded_relevance_threshold,
+                    help="Minimum relevance score (1-10) for jobs to be included. Higher values = more strict filtering."
+                )
+            
+            with col2:
+                st.markdown("**Job Score Boosters**")
+                boost_descriptions = st.text_area(
+                    "Job Score Boosters",
+                    value=loaded_boost_descriptions,
+                    placeholder="Enter keywords/descriptions that should boost job scores (e.g., 'Python, Docker, Kubernetes, AWS, remote work, competitive salary')",
+                    help="Keywords or descriptions that will increase the relevance score of matching jobs.",
+                    height=100
+                )
+                
+                st.markdown("**Analysis Mode**")
+                analysis_mode = st.selectbox(
+                    "AI Analysis Mode",
+                    options=["Custom Criteria", "Default IT Focus", "Lenient (All Jobs)"],
+                    index=0,
+                    help="Choose how the AI should analyze and filter jobs"
+                )
+
             # Saved search functionality
             st.markdown("#### 💾 Save Search Parameters")
             col1, col2 = st.columns([3, 1])
@@ -194,7 +245,11 @@ class EnhancedJobSearchView(BaseView):
                         max_pages=max_pages,
                         english_only=english_only,
                         enable_grouping=enable_grouping,
-                        deep_scrape=deep_scrape
+                        deep_scrape=deep_scrape,
+                        analysis_criteria=analysis_criteria,
+                        boost_descriptions=boost_descriptions,
+                        relevance_threshold=relevance_threshold,
+                        analysis_mode=analysis_mode
                     )
                     if success:
                         st.success(f"✅ Search parameters saved as '{save_search_name}'")
@@ -207,7 +262,11 @@ class EnhancedJobSearchView(BaseView):
                     max_pages=max_pages,
                     selected_platforms=selected_platforms,
                     english_only=english_only,
-                    deep_scrape=deep_scrape
+                    deep_scrape=deep_scrape,
+                    analysis_criteria=analysis_criteria,
+                    boost_descriptions=boost_descriptions,
+                    relevance_threshold=relevance_threshold,
+                    analysis_mode=analysis_mode
                 )
             else:
                 st.error("❌ Please provide a location")
@@ -236,13 +295,23 @@ class EnhancedJobSearchView(BaseView):
                 self._display_results(st.session_state.search_results)
 
     def _execute_search(self, job_titles: List[str], location: str, max_pages: int,
-                       selected_platforms: List[str], english_only: bool, deep_scrape: bool = True):
+                       selected_platforms: List[str], english_only: bool, deep_scrape: bool = True,
+                       analysis_criteria: str = "", boost_descriptions: str = "", 
+                       relevance_threshold: int = 5, analysis_mode: str = "Custom Criteria"):
         """Execute job search and update session state."""
         try:
             progress_bar = st.progress(0, text="🔍 Initializing search...")
             titles_str = ", ".join(job_titles)
             
             with self.job_scraper_orchestrator as orchestrator:
+                # Configure AI analysis parameters
+                orchestrator.set_analysis_parameters(
+                    analysis_criteria=analysis_criteria,
+                    boost_descriptions=boost_descriptions,
+                    relevance_threshold=relevance_threshold,
+                    analysis_mode=analysis_mode
+                )
+                
                 # Use optimized search method for better performance
                 progress_bar.progress(0.2, text="🚀 Starting optimized parallel search...")
                 

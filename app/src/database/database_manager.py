@@ -193,6 +193,22 @@ class DatabaseManager:
             self.logger.error(f"Error getting count for {table_name}: {e}")
             return 0
     
+    def get_cached_job_details(self, job_url: str) -> Optional[Dict[str, Any]]:
+        """Get cached job details for a specific URL."""
+        try:
+            return self.job_details.get_cached_job_details(job_url)
+        except Exception as e:
+            self.logger.error(f"Error getting cached job details: {e}")
+            return None
+    
+    def get_cached_job_details_stats(self) -> Dict[str, Any]:
+        """Get statistics about cached job details."""
+        try:
+            return self.job_details.get_cache_stats()
+        except Exception as e:
+            self.logger.error(f"Error getting cached job details stats: {e}")
+            return {}
+    
     def close(self):
         """Close database connections."""
         if self.connection_pool:
