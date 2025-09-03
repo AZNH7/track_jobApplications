@@ -4,14 +4,9 @@ FROM debian:bookworm-slim
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TMPDIR=/var/tmp
 
-# Create entrypoint script
+# Create simplified entrypoint script for Windows compatibility
 RUN echo '#!/bin/bash\n\
-# Add host.docker.internal to /etc/hosts if not running on Docker Desktop\n\
-if ! grep -q "host.docker.internal" /etc/hosts; then\n\
-    DOCKER_INTERNAL_HOST="$(ip route | awk '"'"'/default/ { print $3 }'"'"')"\n\
-    echo "$DOCKER_INTERNAL_HOST host.docker.internal" >> /etc/hosts\n\
-fi\n\
-\n\
+# Simple entrypoint for Windows compatibility\n\
 exec "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
 
 # Ensure /var/tmp exists and is world-writable
