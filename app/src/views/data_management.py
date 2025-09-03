@@ -133,8 +133,6 @@ class DataManagementView(BaseJobTracker):
             # Clear all job listings
             listings_query = "DELETE FROM job_listings"
             self.db_manager.execute_query(listings_query)
-
-        pass
             
             # Get counts for reporting
             try:
