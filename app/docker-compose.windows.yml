@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Main Application Service
   job-tracker:
@@ -9,11 +7,9 @@ services:
       args:
         - BUILDKIT_INLINE_CACHE=0
     container_name: track_jobapplication-app
-    # Use bridge network instead of host for Windows compatibility
+    # Remove host network mode for Windows compatibility
     networks:
       - track_jobapplication-network
-    env_file:
-      - ../.env
     environment:
       - PYTHONPATH=/app/src
       - DB_HOST=postgres
@@ -48,8 +44,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
   # Database Service
   postgres:
@@ -91,60 +85,95 @@ services:
       timeout: 5s
       retries: 5
 
-  # FlareSolverr Balancer for Windows
+  flaresolverr-1:
+    image: 21hsmw/flaresolverr:nodriver
+    container_name: track_jobapplication-flaresolverr-1
+    ports:
+      - "8191:8191"
+    networks:
+      - track_jobapplication-network
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+    shm_size: '2gb'
+    cap_add:
+      - SYS_ADMIN
+
+  flaresolverr-2:
+    image: 21hsmw/flaresolverr:nodriver
+    container_name: track_jobapplication-flaresolverr-2
+    ports:
+      - "8192:8191"
+    networks:
+      - track_jobapplication-network
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+    shm_size: '2gb'
+    cap_add:
+      - SYS_ADMIN
+
+  flaresolverr-3:
+    image: 21hsmw/flaresolverr:nodriver
+    container_name: track_jobapplication-flaresolverr-3
+    ports:
+      - "8193:8191"
+    networks:
+      - track_jobapplication-network
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+    shm_size: '2gb'
+    cap_add:
+      - SYS_ADMIN
+
+  flaresolverr-4:
+    image: 21hsmw/flaresolverr:nodriver
+    container_name: track_jobapplication-flaresolverr-4
+    ports:
+      - "8194:8191"
+    networks:
+      - track_jobapplication-network
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+    shm_size: '2gb'
+    cap_add:
+      - SYS_ADMIN
+
+  flaresolverr-5:
+    image: 21hsmw/flaresolverr:nodriver
+    container_name: track_jobapplication-flaresolverr-5
+    ports:
+      - "8195:8191"
+    networks:
+      - track_jobapplication-network
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+    shm_size: '2gb'
+    cap_add:
+      - SYS_ADMIN
+
   flaresolverr-balancer:
     image: nginx:alpine
     container_name: track_jobapplication-flaresolverr-balancer
-    ports:
-      - "8190:80"
     volumes:
       - ./nginx-flaresolverr.conf:/etc/nginx/nginx.conf:ro
+      - ./disable-ipv6.sh:/disable-ipv6.sh:ro
+    ports:
+      - "8190:8190"
     networks:
       - track_jobapplication-network
+    environment:
+      - NGINX_DISABLE_IPV6=true
+    entrypoint: ["/bin/sh", "/disable-ipv6.sh"]
     depends_on:
       - flaresolverr-1
       - flaresolverr-2
       - flaresolverr-3
-    restart: unless-stopped
-
-  # FlareSolverr Instance 1
-  flaresolverr-1:
-    image: 21hsmw/flaresolverr:nodriver
-    container_name: track_jobapplication-flaresolverr-1
-    networks:
-      - track_jobapplication-network
-    restart: unless-stopped
-    environment:
-      - LOG_LEVEL=info
-    shm_size: '2gb'
-    cap_add:
-      - SYS_ADMIN
-
-  # FlareSolverr Instance 2
-  flaresolverr-2:
-    image: 21hsmw/flaresolverr:nodriver
-    container_name: track_jobapplication-flaresolverr-2
-    networks:
-      - track_jobapplication-network
-    restart: unless-stopped
-    environment:
-      - LOG_LEVEL=info
-    shm_size: '2gb'
-    cap_add:
-      - SYS_ADMIN
-
-  # FlareSolverr Instance 3
-  flaresolverr-3:
-    image: 21hsmw/flaresolverr:nodriver
-    container_name: track_jobapplication-flaresolverr-3
-    networks:
-      - track_jobapplication-network
-    restart: unless-stopped
-    environment:
-      - LOG_LEVEL=info
-    shm_size: '2gb'
-    cap_add:
-      - SYS_ADMIN
+      - flaresolverr-4
+      - flaresolverr-5
 
 volumes:
   track_jobapplication_postgres_data:

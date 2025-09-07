@@ -967,7 +967,6 @@ class JobScraperOrchestrator:
     def _apply_pre_save_safeguards(self, jobs_data: List[Dict], db_manager) -> List[Dict]:
         """Apply LLM-powered safeguards and duplicate detection before saving."""
         try:
-            # Ollama client is already initialized in constructor
             
             validated_jobs = []
             duplicate_count = 0
@@ -1039,17 +1038,28 @@ class JobScraperOrchestrator:
                 
                 if location_filter_enabled:
                     try:
-                        # Check if this is an Indeed job
+                        # Check if this is an Indeed job or if the job location matches the searched location
                         job_url = (job.get('url', '') or '').lower()
                         job_platform = (job.get('platform', '') or '').lower()
                         job_source = (job.get('source', '') or '').lower()
+                        job_location = (job.get('location', '') or '').lower()
+                        searched_location = (getattr(self, 'searched_location', '') or '').lower()
+                        
                         is_indeed_job = ('indeed.com' in job_url or 
                                        job_platform == 'indeed' or 
                                        job_source == 'indeed')
                         
+                        # Check if job location matches searched location (case-insensitive)
+                        location_matches = (searched_location in job_location or 
+                                          job_location in searched_location or
+                                          searched_location == job_location)
+                        
                         if is_indeed_job:
                             print(f"   ✅ Skipping location filter for Indeed job: {job.get('title')} at {job.get('location', 'Unknown')}")
                             # Indeed jobs are already location-filtered by the search, so keep them
+                        elif location_matches and searched_location:
+                            print(f"   ✅ Location matches searched location ({searched_location}): {job.get('title')} at {job.get('location', 'Unknown')}")
+                            # Job location matches searched location, so keep it
                         else:
                             # Convert single job to list for JobFilters
                             job_list = [job]
@@ -1170,6 +1180,82 @@ class JobScraperOrchestrator:
                     validated_jobs.append(job)
             return validated_jobs
 
+    def _get_dynamic_assessment_criteria(self, analysis_mode: str, analysis_criteria: str) -> str:
+        searched_location = getattr(self, 'searched_location')
+        
+        if analysis_mode == "Lenient (All Jobs)":
+            return f"""
+            CRITICAL: BE VERY LENIENT - INCLUDE MOST LEGITIMATE JOBS
+            
+            ONLY FILTER OUT (should_filter: true) jobs that are:
+            - Clearly spam, fake, or MLM/pyramid schemes
+            - Obviously scams or suspicious companies
+            - ANY jobs located in USA, United States, Canada, UK, or other non-German countries
+            - Jobs with locations containing: USA, United States, America, Canadian cities, UK cities, London, New York, California, Texas, etc.
+            
+            KEEP (should_filter: false) most legitimate jobs, even if they don't perfectly match search keywords
+            - Be flexible with job titles and categories
+            - Focus on job quality rather than strict matching
+            - Location more than 50km from {searched_location}, Germany (unless remote) - BE VERY LENIENT
+            """
+            
+        elif analysis_mode == "Default IT Focus":
+            return f"""
+            CRITICAL: JOB TITLE RELEVANCE IS THE PRIMARY FILTER
+            
+            IMMEDIATELY FILTER OUT (should_filter: true) jobs with titles that are:
+            - Sales roles: "Sales Representative", "Account Manager", "Business Development", "Sales Manager", "Sales Engineer"
+            - Marketing roles: "Marketing Manager", "Content Creator", "Social Media Manager", "Marketing Specialist"
+            - Design roles: "Graphic Designer", "UI/UX Designer", "Web Designer", "Creative Director"
+            - Non-technical management: "Project Manager" (unless explicitly IT/technical)
+            - Customer service: "Customer Support", "Help Desk", "Customer Success", "Support Specialist"
+            - HR/Finance: "Human Resources", "Recruiter", "Accountant", "Finance Manager"
+            - Administrative: "Office Administrator", "Secretary", "Assistant", "Coordinator"
+            - Construction/Manufacturing: "Construction Manager", "Factory Worker", "Maintenance Technician"
+            - Healthcare/Education: "Nurse", "Teacher", "Doctor", "Therapist"
+            - Retail/Hospitality: "Store Manager", "Waiter", "Chef", "Cashier"
+            
+            FILTER OUT (should_filter: true) jobs that are:
+            - Very low quality descriptions
+            - NOT closely related to the search keywords (REQUIRE STRONG KEYWORD MATCH)
+            - Different job categories than IT/Systems/Engineering
+            - Location more than 50km from {searched_location}, Germany (unless remote) - BE LENIENT with location filtering
+            - ANY jobs located in USA, United States, Canada, UK, or other non-German countries
+            - Jobs with locations containing: USA, United States, America, Canadian cities, UK cities, London, New York, California, Texas, etc.
+            
+            ONLY KEEP (should_filter: false) jobs that have titles containing:
+            - "System Administrator", "Systems Administrator", "System Admin", "IT Admin" or seniority level
+            - "IT Engineer", "Systems Engineer", "Infrastructure Engineer", "Platform Engineer" or seniority level
+            - "DevOps Engineer", "Site Reliability Engineer", "Cloud Engineer" or seniority level
+            - "Network Administrator", "Network Engineer", "Security Engineer" or seniority level
+            - "IT Integration", "Systems Integration", "Integration Specialist" or seniority level
+            - "IT systems", "IT systems engineer", "IT systems administrator", "IT systems manager" or seniority level
+            - "Technical Lead", "IT Manager", "Systems Manager" (technical management only) or seniority level
+            - "Software Engineer", "Software Developer" (if relevant to systems/infrastructure) or seniority level
+            - Other IT/technical roles directly related to system administration, infrastructure, or integration or seniority level
+            """
+            
+        else:  # Custom Criteria
+            return f"""
+            CRITICAL: USE USER'S CUSTOM ANALYSIS CRITERIA
+            
+            USER'S ANALYSIS CRITERIA: {analysis_criteria}
+            
+            FILTER OUT (should_filter: true) jobs that are:
+            - Clearly spam, fake, or MLM/pyramid schemes
+            - Obviously scams or suspicious companies
+            - ANY jobs located in USA, United States, Canada, UK, or other non-German countries
+            - Jobs with locations containing: USA, United States, America, Canadian cities, UK cities, London, New York, California, Texas, etc.
+            - Jobs that don't match the user's analysis criteria above
+            
+            KEEP (should_filter: false) jobs that:
+            - Match the user's analysis criteria
+            - Are located in Germany or remote for Germany
+            - Location within 50km distance from {searched_location}, Germany (unless remote)
+            
+            IMPORTANT: Use the user's analysis criteria as the primary guide for filtering decisions
+            """
+    
     def _get_existing_jobs_for_duplicate_check(self, db_manager) -> List[Dict]:
         """Get existing jobs from database for duplicate checking (last 90 days with better coverage)."""
         try:
@@ -1687,23 +1773,56 @@ class JobScraperOrchestrator:
             # Get the searched location for context
             searched_location = getattr(self, 'searched_location', 'Essen')
             
-            system_prompt = f"""You are an expert job market analyst specializing in IT and technical roles in GERMANY ONLY. 
-            Your task is to analyze job postings for quality, relevance, and extract key information.
+            # Get analysis parameters
+            analysis_criteria = getattr(self, 'analysis_criteria', '')
+            boost_descriptions = getattr(self, 'boost_descriptions', '')
+            analysis_mode = getattr(self, 'analysis_mode', 'Custom Criteria')
             
-            CRITICAL GUIDELINES:
-            - ONLY analyze jobs located in Germany or remote jobs for living in Germany.
-            - IMMEDIATELY REJECT any jobs located in USA, United States, Canada, UK, or other non-German countries
-            - For LinkedIn jobs without descriptions: Be more lenient and base assessment on title and company
-            - Give higher relevance scores to clear IT/technical job titles even without descriptions
-            - Focus on technical skills, programming languages, frameworks, and IT infrastructure
-            - Pay attention to salary information when available
-            - Assess company legitimacy and location validity
-              
-            - Location validation: If location contains USA, United States, America, Canadian cities, UK cities, London, New York, California, Texas, etc. → REJECT immediately
-            - SEARCHED LOCATION: {searched_location} - Use this as the reference location for distance filtering
-            - IMPORTANT: If job location contains "{searched_location}" or is very close to it, KEEP the job regardless of other factors
-            
-            Respond ONLY with valid JSON, no additional text or explanations."""
+            # Build dynamic system prompt based on analysis mode
+            if analysis_mode == "Lenient (All Jobs)":
+                system_prompt = f"""You are an expert job market analyst. Your task is to analyze job postings for quality and relevance.
+                
+                CRITICAL GUIDELINES:
+                - Be very lenient and include most legitimate jobs
+                - Only filter out obvious spam, scams, or fake jobs
+                - Focus on job quality rather than strict category matching
+                - Location validation: If location contains USA, United States, America, Canadian cities, UK cities, London, New York, California, Texas, etc. → REJECT immediately
+                - SEARCHED LOCATION: {searched_location} - Use this as the reference location for distance filtering
+                
+                Respond ONLY with valid JSON, no additional text or explanations."""
+                
+            elif analysis_mode == "Default IT Focus":
+                system_prompt = f"""You are an expert job market analyst specializing in IT and technical roles in GERMANY ONLY. 
+                Your task is to analyze job postings for quality, relevance, and extract key information.
+                
+                CRITICAL GUIDELINES:
+                - ONLY analyze jobs located in Germany or remote jobs for living in Germany.
+                - IMMEDIATELY REJECT any jobs located in USA, United States, Canada, UK, or other non-German countries
+                - For LinkedIn jobs without descriptions: Be more lenient and base assessment on title and company
+                - Give higher relevance scores to clear IT/technical job titles even without descriptions
+                - Focus on technical skills, programming languages, frameworks, and IT infrastructure
+                - Pay attention to salary information when available
+                - Assess company legitimacy and location validity
+                  
+                - Location validation: If location contains USA, United States, America, Canadian cities, UK cities, London, New York, California, Texas, etc. → REJECT immediately
+                - SEARCHED LOCATION: {searched_location} - Use this as the reference location for distance filtering
+                - IMPORTANT: If job location contains "{searched_location}" or is very close to it, KEEP the job regardless of other factors
+                
+                Respond ONLY with valid JSON, no additional text or explanations."""
+                
+            else:  # Custom Criteria
+                system_prompt = f"""You are an expert job market analyst. Your task is to analyze job postings based on the user's specific criteria.
+                
+                USER'S ANALYSIS CRITERIA: {analysis_criteria}
+                
+                CRITICAL GUIDELINES:
+                - Analyze jobs according to the user's specific criteria above
+                - Be flexible and consider the user's preferences
+                - Location validation: If location contains USA, United States, America, Canadian cities, UK cities, London, New York, California, Texas, etc. → REJECT immediately
+                - SEARCHED LOCATION: {searched_location} - Use this as the reference location for distance filtering
+                - IMPORTANT: If job location contains "{searched_location}" or is very close to it, KEEP the job regardless of other factors
+                
+                Respond ONLY with valid JSON, no additional text or explanations."""
             
             prompt = f"""
             Analyze this job posting and provide comprehensive assessment in JSON format:
@@ -1726,44 +1845,17 @@ class JobScraperOrchestrator:
             SEARCH KEYWORDS: {', '.join(self.current_search_keywords) if hasattr(self, 'current_search_keywords') else 'Not specified'}
             SEARCHED LOCATION: {searched_location}
             
+            USER'S BOOST DESCRIPTIONS: {boost_descriptions if boost_descriptions else 'None specified'}
+            
+            SCORING GUIDELINES:
+            - Base relevance score on how well the job matches the search keywords and user's criteria
+            - BOOST the relevance score by 1-3 points if the job contains keywords from the user's boost descriptions
+            - Consider the user's analysis criteria when determining relevance
+            - Quality score should reflect job posting completeness, company legitimacy, and overall professionalism
+            
             ASSESSMENT CRITERIA:
             
-            CRITICAL: JOB TITLE RELEVANCE IS THE PRIMARY FILTER
-            
-            IMMEDIATELY FILTER OUT (should_filter: true) jobs with titles that are:
-            - Sales roles: "Sales Representative", "Account Manager", "Business Development", "Sales Manager", "Sales Engineer"
-            - Marketing roles: "Marketing Manager", "Content Creator", "Social Media Manager", "Marketing Specialist"
-            - Design roles: "Graphic Designer", "UI/UX Designer", "Web Designer", "Creative Director"
-            - Non-technical management: "Project Manager" (unless explicitly IT/technical), "Operations Manager", "General Manager"
-            - Customer service: "Customer Support", "Help Desk", "Customer Success", "Support Specialist"
-            - HR/Finance: "Human Resources", "Recruiter", "Accountant", "Finance Manager"
-            - Administrative: "Office Administrator", "Secretary", "Assistant", "Coordinator"
-            - Construction/Manufacturing: "Construction Manager", "Factory Worker", "Maintenance Technician"
-            - Healthcare/Education: "Nurse", "Teacher", "Doctor", "Therapist"
-            - Retail/Hospitality: "Store Manager", "Waiter", "Chef", "Cashier"
-            
-            FILTER OUT (should_filter: true) jobs that are:
-            - Clearly spam, fake, or MLM/pyramid schemes
-            - Irrelevant to professional IT/technical work (BE VERY STRICT HERE)
-            - Incomplete or very low quality descriptions
-            - Obviously scams or suspicious companies
-            - NOT closely related to the search keywords (REQUIRE STRONG KEYWORD MATCH)
-            - Too broad or generic job titles without IT/System specificity
-            - Different job categories than IT/Systems/Engineering
-            - Job titles without IT/System/Technical keywords when searching for IT roles
-            - Location more than 50km from {searched_location}, Germany (unless remote) - BE LENIENT with location filtering
-            - ANY jobs located in USA, United States, Canada, UK, or other non-German countries
-            - Jobs with locations containing: USA, United States, America, Canadian cities, UK cities, London, New York, California, Texas, etc.
-            
-            ONLY KEEP (should_filter: false) jobs that have titles containing:
-            - "System Administrator", "Systems Administrator", "System Admin", "IT Admin"
-            - "IT Engineer", "Systems Engineer", "Infrastructure Engineer", "Platform Engineer"
-            - "DevOps Engineer", "Site Reliability Engineer", "Cloud Engineer"
-            - "Network Administrator", "Network Engineer", "Security Engineer"
-            - "IT Integration", "Systems Integration", "Integration Specialist"
-            - "Technical Lead", "IT Manager", "Systems Manager" (technical management only)
-            - "Software Engineer", "Software Developer" (if relevant to systems/infrastructure)
-            - Other IT/technical roles directly related to system administration, infrastructure, or integration
+            {self._get_dynamic_assessment_criteria(analysis_mode, analysis_criteria)}
             
             Additional requirements for KEEPING jobs:
             - Legitimate professional IT/technical opportunities
@@ -1930,6 +2022,21 @@ class JobScraperOrchestrator:
     def set_relevance_threshold(self, threshold: int):
         """Set the relevance threshold for job filtering."""
         self.relevance_threshold = max(1, min(10, threshold))  # Ensure it's between 1-10
+    
+    def set_analysis_parameters(self, analysis_criteria: str = "", boost_descriptions: str = "", 
+                               relevance_threshold: int = 5, analysis_mode: str = "Custom Criteria"):
+        """Set custom analysis parameters for dynamic job filtering."""
+        self.analysis_criteria = analysis_criteria.strip()
+        self.boost_descriptions = boost_descriptions.strip()
+        self.relevance_threshold = max(1, min(10, relevance_threshold))
+        self.analysis_mode = analysis_mode
+        
+        if self.debug:
+            print(f"🤖 Analysis parameters set:")
+            print(f"   - Mode: {analysis_mode}")
+            print(f"   - Criteria: {analysis_criteria[:100]}..." if len(analysis_criteria) > 100 else f"   - Criteria: {analysis_criteria}")
+            print(f"   - Boosters: {boost_descriptions[:100]}..." if len(boost_descriptions) > 100 else f"   - Boosters: {boost_descriptions}")
+            print(f"   - Threshold: {relevance_threshold}")
     
     def get_available_platforms(self) -> List[str]:
         """Get list of available platforms."""

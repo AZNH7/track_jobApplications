@@ -26,6 +26,10 @@ class SavedSearchesTable(BaseTable):
                 english_only BOOLEAN DEFAULT FALSE,
                 enable_grouping BOOLEAN DEFAULT TRUE,
                 deep_scrape BOOLEAN DEFAULT FALSE,
+                analysis_criteria TEXT DEFAULT '',
+                boost_descriptions TEXT DEFAULT '',
+                relevance_threshold INTEGER DEFAULT 5,
+                analysis_mode VARCHAR(100) DEFAULT 'Custom Criteria',
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 last_used TIMESTAMP WITH TIME ZONE,
                 use_count INTEGER DEFAULT 0
@@ -39,13 +43,16 @@ class SavedSearchesTable(BaseTable):
     
     def save_search_parameters(self, name: str, job_titles: list, location: str, 
                               platforms: list, max_pages: int, english_only: bool,
-                              enable_grouping: bool, deep_scrape: bool) -> bool:
+                              enable_grouping: bool, deep_scrape: bool,
+                              analysis_criteria: str = "", boost_descriptions: str = "",
+                              relevance_threshold: int = 5, analysis_mode: str = "Custom Criteria") -> bool:
         """Save search parameters to database."""
         try:
             query = """
                 INSERT INTO saved_searches 
-                (name, job_titles, location, platforms, max_pages, english_only, enable_grouping, deep_scrape)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                (name, job_titles, location, platforms, max_pages, english_only, enable_grouping, deep_scrape,
+                 analysis_criteria, boost_descriptions, relevance_threshold, analysis_mode)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (name) DO UPDATE SET
                     job_titles = EXCLUDED.job_titles,
                     location = EXCLUDED.location,
@@ -54,6 +61,10 @@ class SavedSearchesTable(BaseTable):
                     english_only = EXCLUDED.english_only,
                     enable_grouping = EXCLUDED.enable_grouping,
                     deep_scrape = EXCLUDED.deep_scrape,
+                    analysis_criteria = EXCLUDED.analysis_criteria,
+                    boost_descriptions = EXCLUDED.boost_descriptions,
+                    relevance_threshold = EXCLUDED.relevance_threshold,
+                    analysis_mode = EXCLUDED.analysis_mode,
                     last_used = CURRENT_TIMESTAMP
             """
             
@@ -65,7 +76,11 @@ class SavedSearchesTable(BaseTable):
                 max_pages,
                 english_only,
                 enable_grouping,
-                deep_scrape
+                deep_scrape,
+                analysis_criteria,
+                boost_descriptions,
+                relevance_threshold,
+                analysis_mode
             )
             
             self.execute_query(query, params)
@@ -80,8 +95,9 @@ class SavedSearchesTable(BaseTable):
         try:
             query = """
                 SELECT id, name, job_titles, location, platforms, max_pages, 
-                       english_only, enable_grouping, deep_scrape, created_at, 
-                       last_used, use_count
+                       english_only, enable_grouping, deep_scrape, analysis_criteria,
+                       boost_descriptions, relevance_threshold, analysis_mode,
+                       created_at, last_used, use_count
                 FROM saved_searches 
                 ORDER BY last_used DESC NULLS LAST, created_at DESC
             """
@@ -107,9 +123,13 @@ class SavedSearchesTable(BaseTable):
                         'english_only': row[6],
                         'enable_grouping': row[7],
                         'deep_scrape': row[8],
-                        'created_at': row[9].isoformat() if row[9] else None,
-                        'last_used': row[10].isoformat() if row[10] else None,
-                        'use_count': row[11] or 0
+                        'analysis_criteria': row[9] or '',
+                        'boost_descriptions': row[10] or '',
+                        'relevance_threshold': row[11] or 5,
+                        'analysis_mode': row[12] or 'Custom Criteria',
+                        'created_at': row[13].isoformat() if row[13] else None,
+                        'last_used': row[14].isoformat() if row[14] else None,
+                        'use_count': row[15] or 0
                     })
                 except Exception as e:
                     self.logger.error(f"Error parsing saved search row: {e}")
@@ -126,8 +146,9 @@ class SavedSearchesTable(BaseTable):
         try:
             query = """
                 SELECT id, name, job_titles, location, platforms, max_pages, 
-                       english_only, enable_grouping, deep_scrape, created_at, 
-                       last_used, use_count
+                       english_only, enable_grouping, deep_scrape, analysis_criteria,
+                       boost_descriptions, relevance_threshold, analysis_mode,
+                       created_at, last_used, use_count
                 FROM saved_searches 
                 WHERE name = %s
             """
@@ -151,9 +172,13 @@ class SavedSearchesTable(BaseTable):
                     'english_only': result[6],
                     'enable_grouping': result[7],
                     'deep_scrape': result[8],
-                    'created_at': result[9].isoformat() if result[9] else None,
-                    'last_used': result[10].isoformat() if result[10] else None,
-                    'use_count': result[11] or 0
+                    'analysis_criteria': result[9] or '',
+                    'boost_descriptions': result[10] or '',
+                    'relevance_threshold': result[11] or 5,
+                    'analysis_mode': result[12] or 'Custom Criteria',
+                    'created_at': result[13].isoformat() if result[13] else None,
+                    'last_used': result[14].isoformat() if result[14] else None,
+                    'use_count': result[15] or 0
                 }
             except Exception as e:
                 self.logger.error(f"Error parsing saved search: {e}")

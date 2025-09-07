@@ -23,7 +23,11 @@ class SavedSearch:
     english_only: bool
     enable_grouping: bool
     deep_scrape: bool
-    created_at: str
+    analysis_criteria: str = ""
+    boost_descriptions: str = ""
+    relevance_threshold: int = 5
+    analysis_mode: str = "Custom Criteria"
+    created_at: str = ""
     last_used: Optional[str] = None
     use_count: int = 0
 
@@ -42,7 +46,9 @@ class SavedSearchService:
     
     def save_search(self, name: str, job_titles: List[str], location: str, 
                    platforms: List[str], max_pages: int, english_only: bool,
-                   enable_grouping: bool, deep_scrape: bool) -> bool:
+                   enable_grouping: bool, deep_scrape: bool, 
+                   analysis_criteria: str = "", boost_descriptions: str = "",
+                   relevance_threshold: int = 5, analysis_mode: str = "Custom Criteria") -> bool:
         """Save search parameters with a given name to database"""
         try:
             if not self.db_manager:
@@ -55,7 +61,8 @@ class SavedSearchService:
             # Save to database (will update if exists due to ON CONFLICT)
             success = self.db_manager.saved_searches.save_search_parameters(
                 name, job_titles, location, platforms, max_pages, 
-                english_only, enable_grouping, deep_scrape
+                english_only, enable_grouping, deep_scrape,
+                analysis_criteria, boost_descriptions, relevance_threshold, analysis_mode
             )
             
             if success:
@@ -94,6 +101,10 @@ class SavedSearchService:
                     english_only=search_dict['english_only'],
                     enable_grouping=search_dict['enable_grouping'],
                     deep_scrape=search_dict['deep_scrape'],
+                    analysis_criteria=search_dict.get('analysis_criteria', ''),
+                    boost_descriptions=search_dict.get('boost_descriptions', ''),
+                    relevance_threshold=search_dict.get('relevance_threshold', 5),
+                    analysis_mode=search_dict.get('analysis_mode', 'Custom Criteria'),
                     created_at=search_dict['created_at'],
                     last_used=search_dict['last_used'],
                     use_count=search_dict['use_count']
@@ -121,6 +132,10 @@ class SavedSearchService:
                 english_only=search_dict['english_only'],
                 enable_grouping=search_dict['enable_grouping'],
                 deep_scrape=search_dict['deep_scrape'],
+                analysis_criteria=search_dict.get('analysis_criteria', ''),
+                boost_descriptions=search_dict.get('boost_descriptions', ''),
+                relevance_threshold=search_dict.get('relevance_threshold', 5),
+                analysis_mode=search_dict.get('analysis_mode', 'Custom Criteria'),
                 created_at=search_dict['created_at'],
                 last_used=search_dict['last_used'],
                 use_count=search_dict['use_count']

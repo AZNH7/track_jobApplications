@@ -11,8 +11,8 @@ services:
     container_name: track_jobapplication-app
     # Use host network to access host services (Ollama, etc.)
     network_mode: host
-    env_file:
-      - ../.env
+    # env_file:
+    #   - ../.env
     environment:
       - PYTHONPATH=/app/src
       - DB_HOST=${POSTGRES_HOST:-localhost}
