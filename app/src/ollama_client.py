@@ -192,7 +192,7 @@ class OllamaClient:
             # Get configuration for default model
             from config_manager import get_config_manager
             config_manager = get_config_manager()
-            default_model = model or config_manager.get_value('llm.ollama_model', 'llama3:8b')
+            default_model = model or config_manager.get_value('llm.ollama_model', 'llama3.2:latest')
             
             payload = {
                 "model": default_model,
