@@ -188,7 +188,7 @@ class EnhancedJobSearchView(BaseView):
                 st.markdown("**Analysis Mode**")
                 analysis_mode = st.selectbox(
                     "AI Analysis Mode",
-                    options=["Custom Criteria", "Default IT Focus", "Lenient (All Jobs)"],
+                    options=["Custom Criteria", "Lenient (All Jobs)"],
                     index=0,
                     help="Choose how the AI should analyze and filter jobs"
                 )

@@ -1180,81 +1180,6 @@ class JobScraperOrchestrator:
                     validated_jobs.append(job)
             return validated_jobs
 
-    def _get_dynamic_assessment_criteria(self, analysis_mode: str, analysis_criteria: str) -> str:
-        searched_location = getattr(self, 'searched_location')
-        
-        if analysis_mode == "Lenient (All Jobs)":
-            return f"""
-            CRITICAL: BE VERY LENIENT - INCLUDE MOST LEGITIMATE JOBS
-            
-            ONLY FILTER OUT (should_filter: true) jobs that are:
-            - Clearly spam, fake, or MLM/pyramid schemes
-            - Obviously scams or suspicious companies
-            - ANY jobs located in USA, United States, Canada, UK, or other non-German countries
-            - Jobs with locations containing: USA, United States, America, Canadian cities, UK cities, London, New York, California, Texas, etc.
-            
-            KEEP (should_filter: false) most legitimate jobs, even if they don't perfectly match search keywords
-            - Be flexible with job titles and categories
-            - Focus on job quality rather than strict matching
-            - Location more than 50km from {searched_location}, Germany (unless remote) - BE VERY LENIENT
-            """
-            
-        elif analysis_mode == "Default IT Focus":
-            return f"""
-            CRITICAL: JOB TITLE RELEVANCE IS THE PRIMARY FILTER
-            
-            IMMEDIATELY FILTER OUT (should_filter: true) jobs with titles that are:
-            - Sales roles: "Sales Representative", "Account Manager", "Business Development", "Sales Manager", "Sales Engineer"
-            - Marketing roles: "Marketing Manager", "Content Creator", "Social Media Manager", "Marketing Specialist"
-            - Design roles: "Graphic Designer", "UI/UX Designer", "Web Designer", "Creative Director"
-            - Non-technical management: "Project Manager" (unless explicitly IT/technical)
-            - Customer service: "Customer Support", "Help Desk", "Customer Success", "Support Specialist"
-            - HR/Finance: "Human Resources", "Recruiter", "Accountant", "Finance Manager"
-            - Administrative: "Office Administrator", "Secretary", "Assistant", "Coordinator"
-            - Construction/Manufacturing: "Construction Manager", "Factory Worker", "Maintenance Technician"
-            - Healthcare/Education: "Nurse", "Teacher", "Doctor", "Therapist"
-            - Retail/Hospitality: "Store Manager", "Waiter", "Chef", "Cashier"
-            
-            FILTER OUT (should_filter: true) jobs that are:
-            - Very low quality descriptions
-            - NOT closely related to the search keywords (REQUIRE STRONG KEYWORD MATCH)
-            - Different job categories than IT/Systems/Engineering
-            - Location more than 50km from {searched_location}, Germany (unless remote) - BE LENIENT with location filtering
-            - ANY jobs located in USA, United States, Canada, UK, or other non-German countries
-            - Jobs with locations containing: USA, United States, America, Canadian cities, UK cities, London, New York, California, Texas, etc.
-            
-            ONLY KEEP (should_filter: false) jobs that have titles containing:
-            - "System Administrator", "Systems Administrator", "System Admin", "IT Admin" or seniority level
-            - "IT Engineer", "Systems Engineer", "Infrastructure Engineer", "Platform Engineer" or seniority level
-            - "DevOps Engineer", "Site Reliability Engineer", "Cloud Engineer" or seniority level
-            - "Network Administrator", "Network Engineer", "Security Engineer" or seniority level
-            - "IT Integration", "Systems Integration", "Integration Specialist" or seniority level
-            - "IT systems", "IT systems engineer", "IT systems administrator", "IT systems manager" or seniority level
-            - "Technical Lead", "IT Manager", "Systems Manager" (technical management only) or seniority level
-            - "Software Engineer", "Software Developer" (if relevant to systems/infrastructure) or seniority level
-            - Other IT/technical roles directly related to system administration, infrastructure, or integration or seniority level
-            """
-            
-        else:  # Custom Criteria
-            return f"""
-            CRITICAL: USE USER'S CUSTOM ANALYSIS CRITERIA
-            
-            USER'S ANALYSIS CRITERIA: {analysis_criteria}
-            
-            FILTER OUT (should_filter: true) jobs that are:
-            - Clearly spam, fake, or MLM/pyramid schemes
-            - Obviously scams or suspicious companies
-            - ANY jobs located in USA, United States, Canada, UK, or other non-German countries
-            - Jobs with locations containing: USA, United States, America, Canadian cities, UK cities, London, New York, California, Texas, etc.
-            - Jobs that don't match the user's analysis criteria above
-            
-            KEEP (should_filter: false) jobs that:
-            - Match the user's analysis criteria
-            - Are located in Germany or remote for Germany
-            - Location within 50km distance from {searched_location}, Germany (unless remote)
-            
-            IMPORTANT: Use the user's analysis criteria as the primary guide for filtering decisions
-            """
     
     def _get_existing_jobs_for_duplicate_check(self, db_manager) -> List[Dict]:
         """Get existing jobs from database for duplicate checking (last 90 days with better coverage)."""
@@ -1778,39 +1703,50 @@ class JobScraperOrchestrator:
             boost_descriptions = getattr(self, 'boost_descriptions', '')
             analysis_mode = getattr(self, 'analysis_mode', 'Custom Criteria')
             
-            # Build dynamic system prompt based on analysis mode
+            # Generate dynamic assessment criteria based on analysis mode
             if analysis_mode == "Lenient (All Jobs)":
+                assessment_criteria = f"""
+            CRITICAL: BE VERY LENIENT - INCLUDE MOST LEGITIMATE JOBS
+            
+            ONLY FILTER OUT (should_filter: true) jobs that are:
+            - ANY jobs located in USA, United States, Canada, UK, or other non-German countries
+            - Jobs with locations containing: USA, United States, America, Canadian cities, UK cities, London, New York, California, Texas, etc.
+            
+            KEEP (should_filter: false) most legitimate jobs, even if they don't perfectly match search keywords
+            - Be flexible with job titles and categories
+            - Focus on job quality rather than strict matching
+            - Location more than 50km from {searched_location}, Germany (unless remote) - BE VERY LENIENT
+            """
+                
                 system_prompt = f"""You are an expert job market analyst. Your task is to analyze job postings for quality and relevance.
                 
                 CRITICAL GUIDELINES:
                 - Be very lenient and include most legitimate jobs
-                - Only filter out obvious spam, scams, or fake jobs
                 - Focus on job quality rather than strict category matching
                 - Location validation: If location contains USA, United States, America, Canadian cities, UK cities, London, New York, California, Texas, etc. → REJECT immediately
                 - SEARCHED LOCATION: {searched_location} - Use this as the reference location for distance filtering
                 
                 Respond ONLY with valid JSON, no additional text or explanations."""
                 
-            elif analysis_mode == "Default IT Focus":
-                system_prompt = f"""You are an expert job market analyst specializing in IT and technical roles in GERMANY ONLY. 
-                Your task is to analyze job postings for quality, relevance, and extract key information.
-                
-                CRITICAL GUIDELINES:
-                - ONLY analyze jobs located in Germany or remote jobs for living in Germany.
-                - IMMEDIATELY REJECT any jobs located in USA, United States, Canada, UK, or other non-German countries
-                - For LinkedIn jobs without descriptions: Be more lenient and base assessment on title and company
-                - Give higher relevance scores to clear IT/technical job titles even without descriptions
-                - Focus on technical skills, programming languages, frameworks, and IT infrastructure
-                - Pay attention to salary information when available
-                - Assess company legitimacy and location validity
-                  
-                - Location validation: If location contains USA, United States, America, Canadian cities, UK cities, London, New York, California, Texas, etc. → REJECT immediately
-                - SEARCHED LOCATION: {searched_location} - Use this as the reference location for distance filtering
-                - IMPORTANT: If job location contains "{searched_location}" or is very close to it, KEEP the job regardless of other factors
-                
-                Respond ONLY with valid JSON, no additional text or explanations."""
-                
             else:  # Custom Criteria
+                assessment_criteria = f"""
+            CRITICAL: USE USER'S CUSTOM ANALYSIS CRITERIA
+            
+            USER'S ANALYSIS CRITERIA: {analysis_criteria}
+            
+            FILTER OUT (should_filter: true) jobs that are:
+            - ANY jobs located in USA, United States, Canada, UK, or other non-German countries
+            - Jobs with locations containing: USA, United States, America, Canadian cities, UK cities, London, New York, California, Texas, etc.
+            - Jobs that don't match the user's analysis criteria above
+            
+            KEEP (should_filter: false) jobs that:
+            - Match the user's analysis criteria
+            - Are located in Germany or remote for Germany
+            - Location within 50km distance from {searched_location}, Germany (unless remote)
+            
+            IMPORTANT: Use the user's analysis criteria as the primary guide for filtering decisions
+            """
+                
                 system_prompt = f"""You are an expert job market analyst. Your task is to analyze job postings based on the user's specific criteria.
                 
                 USER'S ANALYSIS CRITERIA: {analysis_criteria}
@@ -1855,26 +1791,26 @@ class JobScraperOrchestrator:
             
             ASSESSMENT CRITERIA:
             
-            {self._get_dynamic_assessment_criteria(analysis_mode, analysis_criteria)}
+            {assessment_criteria}
             
             Additional requirements for KEEPING jobs:
-            - Legitimate professional IT/technical opportunities
-            - Clear job descriptions or relevant technical titles
-            - From real companies with proper structure
-            - Relevant to IT infrastructure, systems administration, or integration work
+            - Legitimate professional opportunities
+            - Clear job descriptions or relevant titles
+            - Relevant to the search keywords
+            - Relevant to the user's analysis criteria
             - STRONG match to search keywords (not just tangential)
-            - Specific technical job titles that match the search intent
+            - Specific job titles that match the search intent
             - Within 50km of {searched_location} or remote work or in major German cities - BE LENIENT with location
             - ONLY German locations: Berlin, Hamburg, Munich, Cologne, Frankfurt, Stuttgart, Düsseldorf, Dortmund, Essen, Leipzig, Bremen, Dresden, Hannover, Nuremberg, and other German cities
             - Remote jobs that specify Germany or living in Germany
             
             RELEVANCE SCORING (0-10) - BE VERY STRICT:
-            - 9-10: Perfect match to search keywords (exact title/role match like "Senior System Administrator", "IT Systems Integration")
-            - 7-8: Very close match (similar IT role with minor variations like "Systems Engineer" for "IT Engineer")
-            - 5-6: Related IT role but different focus (like "Network Admin" when searching for "System Admin")
-            - 3-4: Tangentially IT-related but wrong category (like "IT Support" when searching for "System Admin")
-            - 1-2: Non-IT roles or completely unrelated (Sales, Marketing, Design, etc.)
-            - 0: Must filter out - non-technical roles should get 0 and be filtered
+            - 9-10: Perfect match to search keywords (exact title/role match/{analysis_criteria}/description)
+            - 7-8: Very close match (similar role with minor variations/description/keywords/analysis_criteria)
+            - 5-6: Related role but different focus to the search keywords/analysis_criteria
+            - 3-4: Tangentially related but wrong category to the search keywords/analysis_criteria
+            - 1-2: Non-related roles or completely unrelated to the search keywords/analysis_criteria
+            - 0: Must filter out - non-related roles should get 0 and be filtered
             
             QUALITY SCORING (0-10):
             - 9-10: Excellent job posting with detailed description, clear requirements, good company
@@ -1885,15 +1821,14 @@ class JobScraperOrchestrator:
             
             SPECIAL HANDLING for jobs without descriptions:
             - Focus on job title and company name for assessment
-            - Give benefit of doubt to clear IT/tech job titles
+            - Give benefit of doubt to clear job titles
             - Score 6-8 for relevant titles even without description
-            - Only filter if title is clearly unrelated or spam
+            - Only filter if title is clearly unrelated to the search keywords/analysis_criteria
             
-            TECHNICAL ANALYSIS:
-            - Extract technical skills mentioned (programming languages, frameworks, tools)
+            ANALYSIS:
+            - Extract skills mentioned (programming languages, frameworks, tools)
             - Assess experience level based on title and requirements
             - Determine if remote work is mentioned or possible
-            - Consider salary information when available for quality assessment
             
             Job Details:
             Title: {job_title}
