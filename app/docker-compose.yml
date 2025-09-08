@@ -24,7 +24,7 @@ services:
       # Ollama configuration - automatically resolves to host machine
       # Users can override with: OLLAMA_HOST=http://your-host-ip:11434
       - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3:8b}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:latest}
       - FLARESOLVERR_URL=http://flaresolverr-balancer:8190/v1
       - STREAMLIT_SERVER_FILEWATCHER_ENABLED=false
       - STREAMLIT_SERVER_MAX_UPLOAD_SIZE=1024
