@@ -21,6 +21,8 @@ services:
       - DB_NAME=${POSTGRES_DB:-jobtracker}
       - DB_USER=${POSTGRES_USER:-jobtracker}
       - DB_PASSWORD=${POSTGRES_PASSWORD:-jobtracker_password}
+      # Ollama configuration - automatically resolves to host machine
+      # Users can override with: OLLAMA_HOST=http://your-host-ip:11434
       - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3:8b}
       - FLARESOLVERR_URL=http://flaresolverr-balancer:8190/v1

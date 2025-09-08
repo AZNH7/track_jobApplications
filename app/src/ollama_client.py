@@ -56,6 +56,7 @@ class OllamaClient:
     def _resolve_ollama_host(self, host: str) -> str:
         """Resolve Ollama host for cross-platform compatibility"""
         import platform
+        import socket
         
         # If host is already an IP address, return as is
         if not any(keyword in host for keyword in ['host.docker.internal', 'localhost', '127.0.0.1']):
@@ -68,7 +69,20 @@ class OllamaClient:
         if 'host.docker.internal' in host:
             strategies.append(('host.docker.internal', 'host.docker.internal'))
         
-        # Strategy 2: Try common Docker gateway IPs (Linux Docker)
+        # Strategy 2: Try to get the actual host IP dynamically
+        try:
+            # Get the default gateway IP (usually the host IP in Docker)
+            import subprocess
+            result = subprocess.run(['ip', 'route', 'show', 'default'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                gateway_ip = result.stdout.split()[2]
+                if gateway_ip and gateway_ip != '0.0.0.0':
+                    strategies.append((gateway_ip, gateway_ip))
+        except Exception:
+            pass
+        
+        # Strategy 3: Try common Docker gateway IPs (Linux Docker)
         strategies.extend([
             ('172.17.0.1', '172.17.0.1'),
             ('172.18.0.1', '172.18.0.1'),
@@ -76,7 +90,15 @@ class OllamaClient:
             ('172.20.0.1', '172.20.0.1'),
         ])
         
-        # Strategy 3: Try localhost
+        # Strategy 4: Try to resolve host.docker.internal to actual IP
+        try:
+            resolved_ip = socket.gethostbyname('host.docker.internal')
+            if resolved_ip and resolved_ip != '127.0.0.1':
+                strategies.append((resolved_ip, resolved_ip))
+        except Exception:
+            pass
+        
+        # Strategy 5: Try localhost
         strategies.append(('localhost', 'localhost'))
         strategies.append(('127.0.0.1', '127.0.0.1'))
         
