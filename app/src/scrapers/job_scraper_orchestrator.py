@@ -1619,9 +1619,6 @@ class JobScraperOrchestrator:
         
         # Strong German indicators with weighted scoring (includes titles and short descriptions)
         german_indicators = {
-            # Very strong German indicators (common in job titles)
-            '(m/w/d)': 20, '(w/m/d)': 20, '(d/m/w)': 20, '(m/w/x)': 20, '(w/m/x)': 20, '(d/m/x)': 20,
-            'gmbh': 15, ' ag ': 15, ' kg ': 12, ' e.v.': 12,
             # Job title specific German terms (higher weights for titles)
             'entwickler': 10, 'ingenieur': 10, 'mitarbeiter': 8, 'experte': 8, 'spezialist': 8,
             'berater': 8, 'manager': 6, 'administrator': 6, 'betreuer': 6, 'koordinator': 6,
@@ -1637,8 +1634,6 @@ class JobScraperOrchestrator:
         
         # Strong English indicators (includes titles and short descriptions)
         english_indicators = {
-            # Company types
-            ' ltd': 15, ' inc': 15, ' corp': 12, ' llc': 12,
             # Job title specific English terms (higher weights for titles)
             'developer': 10, 'engineer': 10, 'specialist': 8, 'expert': 8, 'analyst': 8,
             'manager': 8, 'administrator': 6, 'coordinator': 6, 'assistant': 6, 'consultant': 6,
@@ -1663,7 +1658,7 @@ class JobScraperOrchestrator:
             return 'en'
         else:
             # If unclear, check for explicit language mentions
-            if any(phrase in text_lower for phrase in ['deutsch', 'german', 'deutschland', 'germany']):
+            if any(phrase in text_lower for phrase in ['deutsch', 'deutschland']): 
                 return 'de'
             elif any(phrase in text_lower for phrase in ['english', 'international', 'global']):
                 return 'en'
