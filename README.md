@@ -329,7 +329,7 @@ Copy `app/env.template` to `.env` and configure:
 LINKEDIN_LI_AT="your_linkedin_cookie_here"
 
 # AI Features (Ollama runs on host machine)
-OLLAMA_HOST="http://host.docker.internal:11434"
+OLLAMA_HOST="http://localhost:11434"
 ```
 
 ### 📁 Directory Structure
@@ -566,7 +566,7 @@ ollama serve
 - **CPU**: Multi-core recommended for faster analysis
 - **Internet**: Required for initial model download only
 
-**Note**: Ollama runs on your host machine at `localhost:11434`, and the Docker containers connect to it via `host.docker.internal:11434`.
+**Note**: Ollama runs on your host machine at `localhost:11434`, and the Docker containers connect to it via `localhost:11434`.
 
 ### Available AI Models
 
