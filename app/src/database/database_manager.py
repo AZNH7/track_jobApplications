@@ -131,9 +131,13 @@ class DatabaseManager:
                     cursor.execute(query, params)
                     
                     if fetch == 'one':
-                        return cursor.fetchone()
+                        result = cursor.fetchone()
+                        conn.commit()  # Always commit after successful execution
+                        return result
                     elif fetch == 'all':
-                        return cursor.fetchall()
+                        result = cursor.fetchall()
+                        conn.commit()  # Always commit after successful execution
+                        return result
                     else:
                         conn.commit()
                         return None
@@ -208,6 +212,88 @@ class DatabaseManager:
         except Exception as e:
             self.logger.error(f"Error getting cached job details stats: {e}")
             return {}
+    
+    def batch_insert_jobs(self, jobs_data: List[Dict[str, Any]]) -> int:
+        """Insert multiple jobs into the database in batch."""
+        if not jobs_data:
+            self.logger.warning("No jobs data provided for batch insert")
+            return 0
+        
+        saved_count = 0
+        failed_count = 0
+        try:
+            self.logger.info(f"Starting batch insert of {len(jobs_data)} jobs")
+            
+            for i, job in enumerate(jobs_data):
+                try:
+                    # Log job details for debugging
+                    job_title = job.get('title', 'Unknown')
+                    job_url = job.get('url', 'No URL')
+                    self.logger.debug(f"Processing job {i+1}/{len(jobs_data)}: {job_title}")
+                    
+                    job_id = self.job_listings.insert_job(job)
+                    if job_id:
+                        saved_count += 1
+                        self.logger.debug(f"✅ Saved job: {job_title} (ID: {job_id})")
+                    else:
+                        failed_count += 1
+                        self.logger.warning(f"❌ Failed to save job: {job_title} (URL: {job_url})")
+                        
+                except Exception as job_error:
+                    failed_count += 1
+                    self.logger.error(f"❌ Error saving job {job.get('title', 'Unknown')}: {job_error}")
+            
+            self.logger.info(f"Batch insert completed: {saved_count} saved, {failed_count} failed out of {len(jobs_data)} total")
+            return saved_count
+            
+        except Exception as e:
+            self.logger.error(f"Critical error in batch insert: {e}")
+            return saved_count
+    
+    def save_job_listing(self, job_data: Dict[str, Any]) -> bool:
+        """Save a single job listing to the database."""
+        try:
+            job_id = self.job_listings.insert_job(job_data)
+            if job_id:
+                self.logger.info(f"Job saved successfully: {job_data.get('title', 'Unknown')} (ID: {job_id})")
+                return True
+            else:
+                self.logger.warning(f"Failed to save job: {job_data.get('title', 'Unknown')}")
+                return False
+        except Exception as e:
+            self.logger.error(f"Error saving job listing: {e}")
+            return False
+    
+    def cleanup_filtered_jobs_from_ignored(self) -> int:
+        """Clean up jobs that are in filtered_jobs but also in ignored_jobs."""
+        try:
+            # Get jobs that are in both filtered and ignored tables using job_listing_id
+            query = """
+                SELECT f.id, f.job_listing_id, jl.title, jl.company
+                FROM filtered_jobs f
+                INNER JOIN ignored_jobs i ON f.job_listing_id = i.job_listing_id
+                LEFT JOIN job_listings jl ON f.job_listing_id = jl.id
+            """
+            
+            duplicate_jobs = self.execute_query(query, fetch='all')
+            
+            if not duplicate_jobs:
+                return 0
+            
+            # Remove duplicates from filtered_jobs (keep in ignored_jobs)
+            removed_count = 0
+            for job in duplicate_jobs:
+                delete_query = "DELETE FROM filtered_jobs WHERE id = %s"
+                self.execute_query(delete_query, (job['id'],))
+                removed_count += 1
+                self.logger.debug(f"Removed duplicate from filtered_jobs: {job['title']} at {job['company']}")
+            
+            self.logger.info(f"Cleaned up {removed_count} duplicate jobs from filtered_jobs")
+            return removed_count
+            
+        except Exception as e:
+            self.logger.error(f"Error cleaning up filtered jobs: {e}")
+            return 0
     
     def close(self):
         """Close database connections."""

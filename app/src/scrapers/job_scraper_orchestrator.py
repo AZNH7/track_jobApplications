@@ -941,7 +941,6 @@ class JobScraperOrchestrator:
                     'description': job.get('description', ''),
                     'language': job.get('language', ''),
                     'job_snippet': job.get('job_snippet', ''),
-                    'llm_assessment': job.get('llm_assessment', ''),
                     'llm_filtered': job.get('llm_filtered', False),
                     'llm_quality_score': job.get('llm_quality_score', 0),
                     'llm_relevance_score': job.get('llm_relevance_score', 0),

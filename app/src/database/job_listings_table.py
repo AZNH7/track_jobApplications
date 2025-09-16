@@ -29,8 +29,8 @@ class JobListingsTable(BaseTable):
                 language TEXT,
                 job_snippet TEXT,
                 llm_filtered BOOLEAN DEFAULT FALSE,
-                llm_quality_score DECIMAL(3,2),
-                llm_relevance_score DECIMAL(3,2),
+                llm_quality_score DECIMAL(4,2),
+                llm_relevance_score DECIMAL(4,2),
                 llm_reasoning TEXT
             )
         ''')

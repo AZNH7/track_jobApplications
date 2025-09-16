@@ -73,9 +73,9 @@ CREATE TABLE job_offers (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     status TEXT DEFAULT 'active',
     notes TEXT,
-    benefits_score DECIMAL(3,2),
-    work_life_balance_score DECIMAL(3,2),
-    growth_score DECIMAL(3,2)
+    benefits_score DECIMAL(4,2),
+    work_life_balance_score DECIMAL(4,2),
+    growth_score DECIMAL(4,2)
 );
 
 -- Filtered jobs table

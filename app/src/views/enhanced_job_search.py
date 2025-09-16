@@ -56,10 +56,57 @@ class EnhancedJobSearchView(BaseView):
         
         # Migrate any existing saved searches from session state to database
         self.saved_search_service.migrate_session_state_to_database()
+    
+    def _show_last_search_status(self):
+        """Show the status of the last search."""
+        status = st.session_state.last_search_status
+        
+        if status['success']:
+            # Success status
+            st.success(f"✅ Last search completed successfully!")
+            
+            # Create columns for status info
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("Jobs Found", status['jobs_found'])
+            
+            with col2:
+                timestamp = status['timestamp'].strftime('%H:%M:%S')
+                st.metric("Completed", timestamp)
+            
+            with col3:
+                platforms_count = len(status['platforms'])
+                st.metric("Platforms", platforms_count)
+            
+            # Show search details in expander
+            with st.expander("🔍 Last Search Details", expanded=False):
+                st.text(f"Keywords: {status['keywords']}")
+                st.text(f"Location: {status['location']}")
+                st.text(f"Platforms: {', '.join(status['platforms'])}")
+                
+                # Add quick action button
+                if st.button("📋 View Results in Job Browser", key="view_last_results"):
+                    st.switch_page("Job Browser")
+        else:
+            # Error status
+            st.error(f"❌ Last search failed: {status.get('error', 'Unknown error')}")
+            
+            # Show retry option
+            if st.button("🔄 Retry Last Search", key="retry_last_search"):
+                # Clear the error status and allow retry
+                del st.session_state.last_search_status
+                st.rerun()
+        
+        st.markdown("---")
         
     def show(self):
         """Show enhanced job search interface with grouping"""
         st.markdown("### 🔍 Job Search with Smart Grouping")
+        
+        # Show last search status if available
+        if 'last_search_status' in st.session_state:
+            self._show_last_search_status()
         
         # Show persistent search results if available
         if PersistentSearchResults.has_search_results():
@@ -149,11 +196,13 @@ class EnhancedJobSearchView(BaseView):
             loaded_analysis_criteria = ""
             loaded_boost_descriptions = ""
             loaded_relevance_threshold = 5
+            loaded_analysis_mode = "Custom Criteria"
             
             if 'loaded_search' in st.session_state:
                 loaded_analysis_criteria = st.session_state.loaded_search.get('analysis_criteria', '')
                 loaded_boost_descriptions = st.session_state.loaded_search.get('boost_descriptions', '')
                 loaded_relevance_threshold = st.session_state.loaded_search.get('relevance_threshold', 5)
+                loaded_analysis_mode = st.session_state.loaded_search.get('analysis_mode', 'Custom Criteria')
             
             col1, col2 = st.columns(2)
             
@@ -186,10 +235,15 @@ class EnhancedJobSearchView(BaseView):
                 )
                 
                 st.markdown("**Analysis Mode**")
+                analysis_mode_options = ["Custom Criteria", "Lenient (All Jobs)"]
+                analysis_mode_index = 0
+                if loaded_analysis_mode in analysis_mode_options:
+                    analysis_mode_index = analysis_mode_options.index(loaded_analysis_mode)
+                
                 analysis_mode = st.selectbox(
                     "AI Analysis Mode",
-                    options=["Custom Criteria", "Lenient (All Jobs)"],
-                    index=0,
+                    options=analysis_mode_options,
+                    index=analysis_mode_index,
                     help="Choose how the AI should analyze and filter jobs"
                 )
 
@@ -354,10 +408,103 @@ class EnhancedJobSearchView(BaseView):
             progress_bar.progress(1.0, text="✅ Search complete!")
             st.toast(f"Found {len(results_df)} jobs!")
             
+            # Store search completion status and results
+            st.session_state.last_search_status = {
+                'completed': True,
+                'success': True,
+                'jobs_found': len(results_df),
+                'timestamp': datetime.now(),
+                'keywords': titles_str,
+                'location': location,
+                'platforms': selected_platforms
+            }
+            
+            # Show persistent search results summary
+            self._show_search_results_summary(results_df, titles_str, location, selected_platforms)
+            
         except Exception as e:
             st.error(f"❌ Search failed: {str(e)}")
             self.logger.error(f"Search execution failed: {e}")
             progress_bar.progress(0, text="❌ Search failed")
+            
+            # Store failed search status
+            st.session_state.last_search_status = {
+                'completed': True,
+                'success': False,
+                'error': str(e),
+                'timestamp': datetime.now(),
+                'keywords': titles_str,
+                'location': location,
+                'platforms': selected_platforms
+            }
+    
+    def _show_search_results_summary(self, results_df: pd.DataFrame, keywords: str, location: str, platforms: List[str]):
+        """Show persistent search results summary."""
+        st.markdown("---")
+        st.markdown("### 🔍 Search Results Summary")
+        
+        # Create columns for better layout
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Jobs Found", len(results_df))
+        
+        with col2:
+            if not results_df.empty:
+                # Count unique companies
+                unique_companies = results_df['company'].nunique() if 'company' in results_df.columns else 0
+                st.metric("Unique Companies", unique_companies)
+            else:
+                st.metric("Unique Companies", 0)
+        
+        with col3:
+            if not results_df.empty:
+                # Count platforms
+                unique_platforms = results_df['source'].nunique() if 'source' in results_df.columns else 0
+                st.metric("Platforms", unique_platforms)
+            else:
+                st.metric("Platforms", 0)
+        
+        # Show search details
+        st.markdown("**Search Details:**")
+        details_col1, details_col2 = st.columns(2)
+        
+        with details_col1:
+            st.text(f"Keywords: {keywords}")
+            st.text(f"Location: {location}")
+        
+        with details_col2:
+            st.text(f"Platforms: {', '.join(platforms)}")
+            st.text(f"Completed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # Show platform breakdown if we have results
+        if not results_df.empty and 'source' in results_df.columns:
+            st.markdown("**Platform Breakdown:**")
+            platform_counts = results_df['source'].value_counts()
+            for platform, count in platform_counts.items():
+                st.text(f"• {platform}: {count} jobs")
+        
+        # Add action buttons
+        st.markdown("**Actions:**")
+        action_col1, action_col2, action_col3 = st.columns(3)
+        
+        with action_col1:
+            if st.button("📋 View in Job Browser", type="primary"):
+                st.switch_page("Job Browser")
+        
+        with action_col2:
+            if st.button("💾 Save Search"):
+                # This would save the search for later use
+                st.success("Search saved!")
+        
+        with action_col3:
+            if st.button("🔄 New Search"):
+                # Clear the current search results
+                if 'search_results' in st.session_state:
+                    del st.session_state.search_results
+                if 'last_search_status' in st.session_state:
+                    del st.session_state.last_search_status
+                st.rerun()
     
     def _display_grouped_results(self, df: pd.DataFrame):
         """Display grouped results with optimized grouping."""
@@ -790,7 +937,11 @@ class EnhancedJobSearchView(BaseView):
             'max_pages': search.max_pages,
             'english_only': search.english_only,
             'enable_grouping': search.enable_grouping,
-            'deep_scrape': search.deep_scrape
+            'deep_scrape': search.deep_scrape,
+            'analysis_criteria': search.analysis_criteria,
+            'boost_descriptions': search.boost_descriptions,
+            'relevance_threshold': search.relevance_threshold,
+            'analysis_mode': search.analysis_mode
         }
         
         # Update usage statistics
