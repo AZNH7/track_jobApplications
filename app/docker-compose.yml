@@ -21,9 +21,9 @@ services:
       - DB_NAME=${POSTGRES_DB:-jobtracker}
       - DB_USER=${POSTGRES_USER:-jobtracker}
       - DB_PASSWORD=${POSTGRES_PASSWORD:-jobtracker_password}
-      # Ollama configuration - for local Ollama installations use localhost
-      # For Docker Ollama installations use: OLLAMA_HOST=http://host.docker.internal:11434
-      - OLLAMA_HOST=${OLLAMA_HOST:-http://localhost:11434}
+      # Ollama configuration - for Windows Docker use host.docker.internal
+      # For Linux Docker or local installations use: OLLAMA_HOST=http://localhost:11434
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:latest}
       - FLARESOLVERR_URL=http://flaresolverr-balancer:8190/v1
       - STREAMLIT_SERVER_FILEWATCHER_ENABLED=false

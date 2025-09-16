@@ -178,23 +178,46 @@ class BaseScraper(ABC):
         }
         
         try:
-            response = requests.post(flaresolverr_url, json=payload)
+            response = requests.post(flaresolverr_url, json=payload, timeout=120)
             response.raise_for_status()
             data = response.json()
             
             if data.get('status') == 'ok':
+                solution = data.get('solution', {})
+                if not solution:
+                    print(f"❌ FlareSolverr returned empty solution for URL: {url}")
+                    return None
+                
                 # Create a mock response object
                 mock_response = requests.Response()
-                mock_response.status_code = data['solution']['status']
-                mock_response._content = data['solution']['response'].encode('utf-8')
-                mock_response.headers.update(data['solution']['headers'])
+                mock_response.status_code = solution.get('status', 200)
+                
+                # Handle case where response content might be None
+                response_content = solution.get('response', '')
+                if response_content is None:
+                    print(f"⚠️ FlareSolverr returned None response content for URL: {url}")
+                    response_content = ''
+                mock_response._content = response_content.encode('utf-8')
+                
+                # Handle headers safely
+                headers = solution.get('headers', {})
+                if headers:
+                    mock_response.headers.update(headers)
+                
                 return mock_response
             else:
-                print(f"❌ FlareSolverr error: {data.get('message', 'Unknown error')}")
+                error_msg = data.get('message', 'Unknown error')
+                print(f"❌ FlareSolverr error for URL {url}: {error_msg}")
                 return None
                 
+        except requests.exceptions.Timeout:
+            print(f"❌ FlareSolverr request timeout for URL: {url}")
+            return None
+        except requests.exceptions.RequestException as e:
+            print(f"❌ FlareSolverr request failed for URL {url}: {e}")
+            return None
         except Exception as e:
-            print(f"❌ FlareSolverr request failed: {e}")
+            print(f"❌ FlareSolverr unexpected error for URL {url}: {e}")
             return None
 
     def get_soup(self, html_content: str) -> Optional[BeautifulSoup]:

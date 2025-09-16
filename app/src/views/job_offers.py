@@ -85,7 +85,7 @@ class JobOffersView(BaseJobTracker):
                     NULL as url,
                     NULL as location,
                     NULL as salary
-                FROM applications
+                FROM job_applications
                 WHERE LOWER(status) = 'offer'
             """
             
@@ -175,8 +175,8 @@ class JobOffersView(BaseJobTracker):
             # Get application details
             if table_source == 'applications':
                 query = """
-                SELECT company, position, notes, applied_date, source
-                FROM applications WHERE id = %s
+                SELECT company, position_title, notes, applied_date, source
+                FROM job_applications WHERE id = %s
                 """
             else:
                 query = """

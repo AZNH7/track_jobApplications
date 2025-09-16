@@ -69,7 +69,16 @@ class OllamaClient:
         if 'host.docker.internal' in host:
             strategies.append(('host.docker.internal', 'host.docker.internal'))
         
-        # Strategy 2: Try to get the actual host IP dynamically
+        # Strategy 2: Try to resolve host.docker.internal to actual IP
+        try:
+            resolved_ip = socket.gethostbyname('host.docker.internal')
+            if resolved_ip and resolved_ip != '127.0.0.1':
+                strategies.append((resolved_ip, resolved_ip))
+                self.logger.info(f"Resolved host.docker.internal to {resolved_ip}")
+        except Exception as e:
+            self.logger.debug(f"Could not resolve host.docker.internal: {e}")
+        
+        # Strategy 3: Try to get the actual host IP dynamically (Linux Docker)
         try:
             # Get the default gateway IP (usually the host IP in Docker)
             import subprocess
@@ -79,10 +88,11 @@ class OllamaClient:
                 gateway_ip = result.stdout.split()[2]
                 if gateway_ip and gateway_ip != '0.0.0.0':
                     strategies.append((gateway_ip, gateway_ip))
+                    self.logger.info(f"Found gateway IP: {gateway_ip}")
         except Exception:
             pass
         
-        # Strategy 3: Try common Docker gateway IPs (Linux Docker)
+        # Strategy 4: Try common Docker gateway IPs (Linux Docker)
         strategies.extend([
             ('172.17.0.1', '172.17.0.1'),
             ('172.18.0.1', '172.18.0.1'),
@@ -90,15 +100,7 @@ class OllamaClient:
             ('172.20.0.1', '172.20.0.1'),
         ])
         
-        # Strategy 4: Try to resolve host.docker.internal to actual IP
-        try:
-            resolved_ip = socket.gethostbyname('host.docker.internal')
-            if resolved_ip and resolved_ip != '127.0.0.1':
-                strategies.append((resolved_ip, resolved_ip))
-        except Exception:
-            pass
-        
-        # Strategy 5: Try localhost
+        # Strategy 5: Try localhost variants
         strategies.append(('localhost', 'localhost'))
         strategies.append(('127.0.0.1', '127.0.0.1'))
         
@@ -106,11 +108,13 @@ class OllamaClient:
         for test_host, replacement in strategies:
             try:
                 test_url = host.replace('host.docker.internal', test_host).replace('localhost', test_host).replace('127.0.0.1', test_host)
+                self.logger.debug(f"Testing Ollama connection to: {test_url}")
                 response = requests.get(f"{test_url}/api/tags", timeout=5)
                 if response.status_code == 200:
                     self.logger.info(f"Successfully resolved Ollama host to {test_url}")
                     return test_url
-            except Exception:
+            except Exception as e:
+                self.logger.debug(f"Connection test failed for {test_url}: {e}")
                 continue
         
         # If all strategies fail, return the original host

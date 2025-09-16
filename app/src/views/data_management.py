@@ -24,7 +24,7 @@ class DataManagementView(BaseJobTracker):
             if data_type == "jobs":
                 query = "SELECT * FROM job_listings"
             elif data_type == "applications":
-                query = "SELECT * FROM applications"
+                query = "SELECT * FROM job_applications"
             elif data_type == "offers":
                 query = "SELECT * FROM job_offers"
             elif data_type == "filtered":
@@ -115,7 +115,7 @@ class DataManagementView(BaseJobTracker):
             self.db_manager.execute_query(offers_query)
             
             # Clear applications (they reference job_listings)
-            applications_query = "DELETE FROM applications"
+            applications_query = "DELETE FROM job_applications"
             self.db_manager.execute_query(applications_query)
             
             # Clear job applications (they reference job_listings)
@@ -138,7 +138,7 @@ class DataManagementView(BaseJobTracker):
             try:
                 # Count what was deleted (these will be 0 now, but we can get the counts from before)
                 result['job_listings'] = self.db_manager.execute_query("SELECT COUNT(*) FROM job_listings", fetch='one')[0] if self.db_manager.execute_query("SELECT COUNT(*) FROM job_listings", fetch='one') else 0
-                result['applications'] = self.db_manager.execute_query("SELECT COUNT(*) FROM applications", fetch='one')[0] if self.db_manager.execute_query("SELECT COUNT(*) FROM applications", fetch='one') else 0
+                result['applications'] = self.db_manager.execute_query("SELECT COUNT(*) FROM job_applications", fetch='one')[0] if self.db_manager.execute_query("SELECT COUNT(*) FROM job_applications", fetch='one') else 0
                 result['offers'] = self.db_manager.execute_query("SELECT COUNT(*) FROM job_offers", fetch='one')[0] if self.db_manager.execute_query("SELECT COUNT(*) FROM job_offers", fetch='one') else 0
                 result['emails'] = 0  # Email analysis table removed
             except:
@@ -179,7 +179,7 @@ class DataManagementView(BaseJobTracker):
                 COUNT(DISTINCT company) as companies,
                 COUNT(*) FILTER (WHERE status = 'applied') as applied,
                 COUNT(*) FILTER (WHERE status = 'interview') as interviews
-            FROM applications
+            FROM job_applications
             """
             apps_stats = self.db_manager.execute_query(apps_query, fetch='one')
             stats['applications'] = {

@@ -162,10 +162,69 @@ class SettingsView(BaseView):
         # Show Ollama connection status
         self._display_ollama_status()
 
-        db_config = self.config_manager.get_setting('database', {})
-        st.text_input("Database Host", value=db_config.get('host', ''), key="db_host")
-        st.text_input("Database User", value=db_config.get('user', ''), key="db_user")
-        st.text_input("Database Password", value=db_config.get('password', ''), key="db_password", type="password")
+        # Database configuration - show actual values being used
+        import os
+        st.subheader("Database Configuration")
+        st.info("📋 Database configuration is managed via environment variables in Docker")
+        
+        # Show current database configuration
+        db_host = os.getenv('DB_HOST', 'localhost')
+        db_port = os.getenv('DB_PORT', '5432')
+        db_name = os.getenv('DB_NAME', 'job_tracker')
+        db_user = os.getenv('DB_USER', 'postgres')
+        db_password = os.getenv('DB_PASSWORD', '')
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.text_input("Database Host", value=db_host, disabled=True, help="Set via DB_HOST environment variable")
+            st.text_input("Database Port", value=db_port, disabled=True, help="Set via DB_PORT environment variable")
+        with col2:
+            st.text_input("Database Name", value=db_name, disabled=True, help="Set via DB_NAME environment variable")
+            st.text_input("Database User", value=db_user, disabled=True, help="Set via DB_USER environment variable")
+        
+        # Show password status
+        password_status = "✅ Set" if db_password else "❌ Not Set"
+        st.text_input("Database Password", value=password_status, disabled=True, help="Set via DB_PASSWORD environment variable")
+        
+        # Test database connection
+        if st.button("🔍 Test Database Connection"):
+            self._test_database_connection()
+
+    def _test_database_connection(self):
+        """Test the database connection and show results."""
+        try:
+            from src.database.database_manager import get_db_manager
+            db_manager = get_db_manager()
+            
+            # Test basic connection
+            with db_manager.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT 1")
+                    result = cursor.fetchone()
+                    
+            if result:
+                st.success("✅ Database connection successful!")
+                
+                # Get database stats
+                stats = db_manager.get_database_stats()
+                st.info(f"📊 Database Stats:")
+                st.json(stats)
+                
+                # Check for recent jobs
+                recent_jobs_query = "SELECT COUNT(*) FROM job_listings WHERE scraped_date >= NOW() - INTERVAL '1 hour'"
+                recent_count = db_manager.execute_query(recent_jobs_query, fetch='one')
+                if recent_count:
+                    st.info(f"🕐 Jobs found in last hour: {recent_count[0]}")
+                
+                # Check total jobs
+                total_jobs_query = "SELECT COUNT(*) FROM job_listings"
+                total_count = db_manager.execute_query(total_jobs_query, fetch='one')
+                if total_count:
+                    st.info(f"📋 Total jobs in database: {total_count[0]}")
+                
+        except Exception as e:
+            st.error(f"❌ Database connection failed: {e}")
+            st.info("💡 Check your Docker environment variables and ensure the PostgreSQL container is running")
 
     def _get_available_ollama_models(self):
         """Get list of available Ollama models."""

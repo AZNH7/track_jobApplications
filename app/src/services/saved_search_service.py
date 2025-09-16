@@ -206,7 +206,11 @@ class SavedSearchService:
                     search_dict['max_pages'],
                     search_dict['english_only'],
                     search_dict['enable_grouping'],
-                    search_dict['deep_scrape']
+                    search_dict['deep_scrape'],
+                    search_dict.get('analysis_criteria', ''),
+                    search_dict.get('boost_descriptions', ''),
+                    search_dict.get('relevance_threshold', 5),
+                    search_dict.get('analysis_mode', 'Custom Criteria')
                 )
                 if not success:
                     self.logger.error(f"Failed to import search '{search_dict.get('name', 'Unknown')}'")
@@ -242,7 +246,11 @@ class SavedSearchService:
                             search_dict['max_pages'],
                             search_dict['english_only'],
                             search_dict['enable_grouping'],
-                            search_dict['deep_scrape']
+                            search_dict['deep_scrape'],
+                            search_dict.get('analysis_criteria', ''),
+                            search_dict.get('boost_descriptions', ''),
+                            search_dict.get('relevance_threshold', 5),
+                            search_dict.get('analysis_mode', 'Custom Criteria')
                         )
                         if not success:
                             self.logger.error(f"Failed to migrate search '{search_dict.get('name', 'Unknown')}'")

@@ -258,6 +258,15 @@ class JobBrowserView(BaseView):
     def _load_jobs(self) -> pd.DataFrame:
         """Load jobs from database with applied filters."""
         try:
+            # Debug: First check if there are any jobs at all
+            total_jobs_query = "SELECT COUNT(*) FROM job_listings"
+            total_result = self.db_manager.execute_query(total_jobs_query, fetch='one')
+            total_count = total_result[0] if total_result else 0
+            self.logger.info(f"Total jobs in database: {total_count}")
+            
+            if total_count == 0:
+                self.logger.warning("No jobs found in database at all!")
+                return pd.DataFrame()
             base_query = """
                 SELECT 
                     id, title, company, location, salary, url, source,
@@ -275,6 +284,9 @@ class JobBrowserView(BaseView):
             
             filters = st.session_state.get('job_browser_filters', {})
             params = []
+            
+            # Debug: Log current filters
+            self.logger.info(f"Current Job Browser filters: {filters}")
             
             # Apply filters
             if filters.get('date') == "Last 24 Hours":
@@ -351,7 +363,15 @@ class JobBrowserView(BaseView):
             else:
                 base_query += " ORDER BY scraped_date DESC"
             
+            # Debug: Log the query being executed
+            self.logger.info(f"Executing Job Browser query with {len(params)} parameters")
+            self.logger.debug(f"Query: {base_query}")
+            self.logger.debug(f"Params: {params}")
+            
             result = self.db_manager.execute_query(base_query, params, fetch='all')
+            
+            # Debug: Log query results
+            self.logger.info(f"Job Browser query returned {len(result) if result else 0} rows")
             
             if result:
                 columns = [
