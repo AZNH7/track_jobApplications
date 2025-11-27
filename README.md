@@ -18,7 +18,7 @@ A comprehensive, AI-powered job tracking system for the German job market with i
 ## 🏗️ Repository Structure
 
 ```
-job-tracker/
+track_jobapplications/
 ├── app/                    # 🎯 Main Application
 │   ├── src/                # Core application code
 │   ├── docker-compose.yml  # Docker deployment
@@ -40,8 +40,8 @@ To get started with the Job Tracker application, follow these steps:
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://your-repository-url.com/job-tracker.git
-    cd job-tracker
+    git clone https://github.com/AZNH7/track_jobApplications.git
+    cd track_jobapplications
     ```
 
 2.  **Run the start script:**
@@ -97,8 +97,8 @@ docker-compose -f app/docker-compose.yml up --build
 1. **Open Command Prompt or PowerShell**
    ```cmd
    # Clone the repository
-   git clone https://your-repository-url.com/job-tracker.git
-   cd job-tracker
+   git clone https://github.com/AZNH7/track_jobApplications.git
+   cd track_jobapplications
    ```
 
 2. **Run the Windows Setup Script**
@@ -113,7 +113,7 @@ docker-compose -f app/docker-compose.yml up --build
    - The script will check prerequisites and ask for confirmation before proceeding
    - If Docker Desktop is not running, the script will prompt you to start it
    - The container build process may take several minutes - please be patient
-   cd job-tracker
+   cd track_jobapplications
    ```
 
 2. **Start the Application**
@@ -163,8 +163,8 @@ docker-compose -f app/docker-compose.yml up --build
 1. **Open Terminal**
    ```bash
    # Clone the repository
-   git clone https://your-repository-url.com/job-tracker.git
-   cd job-tracker
+   git clone https://github.com/AZNH7/track_jobApplications.git
+   cd track_jobapplications
    ```
 
 2. **Start the Application**
@@ -243,8 +243,8 @@ curl -fsSL https://ollama.ai/install.sh | sh
 1. **Open Terminal**
    ```bash
    # Clone the repository
-   git clone https://your-repository-url.com/job-tracker.git
-   cd job-tracker
+   git clone https://github.com/AZNH7/track_jobApplications.git
+   cd track_jobapplications
    ```
 
 2. **Start the Application**
@@ -312,8 +312,8 @@ sudo setsebool -P container_manage_cgroup 1
 **All Platforms:**
 ```bash
 # 1. Clone and enter directory
-git clone https://your-repository-url.com/job-tracker.git
-cd job-tracker
+git clone https://github.com/AZNH7/track_jobApplications.git
+cd track_jobapplications
 
 # 2. Start application
 docker-compose -f app/docker-compose.yml up --build

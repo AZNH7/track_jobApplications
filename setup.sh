@@ -136,17 +136,17 @@ EOF
         print_success "Ollama is already installed"
         print_status "Checking for required models..."
         
-        if ollama list | grep -q "llama3.2"; then
+        if ollama list | grep -q "gemma3:1b"; then
             print_success "AI model is ready"
         else
             print_status "Downloading AI model (this may take a while)..."
-            ollama pull llama3.2:latest || print_warning "Failed to download AI model. You can install it later with: ollama pull llama3.2:latest"
+            ollama pull gemma3:1b || print_warning "Failed to download AI model. You can install it later with: ollama pull gemma3:1b"
         fi
     else
         print_warning "Ollama not found. AI features will be disabled."
         print_status "To enable AI features, install Ollama:"
         echo "  - Visit: https://ollama.ai/"
-        echo "  - Then run: ollama pull llama3.2:latest"
+        echo "  - Then run: ollama pull gemma3:1b"
     fi
     
     # Start the application

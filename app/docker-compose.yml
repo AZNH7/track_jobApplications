@@ -24,7 +24,7 @@ services:
       # Ollama configuration - for Windows Docker use host.docker.internal
       # For Linux Docker or local installations use: OLLAMA_HOST=http://localhost:11434
       - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:latest}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-gemma3:1b}
       - FLARESOLVERR_URL=http://flaresolverr-balancer:8190/v1
       - STREAMLIT_SERVER_FILEWATCHER_ENABLED=false
       - STREAMLIT_SERVER_MAX_UPLOAD_SIZE=1024

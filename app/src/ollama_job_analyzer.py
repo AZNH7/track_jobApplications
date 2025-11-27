@@ -34,7 +34,7 @@ class OllamaJobAnalyzer:
         if model_name:
             self.model_name = model_name
         else:
-            self.model_name = self.config_manager.get_value('llm.ollama_model', 'llama3:8b')
+            self.model_name = self.config_manager.get_value('llm.ollama_model', 'gemma3:1b')
         
         self.logger = logging.getLogger(__name__)
         
