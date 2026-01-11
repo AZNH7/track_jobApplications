@@ -135,7 +135,7 @@ if errorlevel 1 (
     ollama list | findstr "gemma3:1b" >nul 2>&1
     if errorlevel 1 (
         echo [INFO] Downloading AI model ^(this may take a while^)...
-        ollama pull gemma3:1b || echo [WARNING] Failed to download AI model. You can install it later with: ollama pull gemma3:1b
+        ollama pull gpt-oss:latest || echo [WARNING] Failed to download AI model. You can install it later with: ollama pull gpt-oss:latest
     ) else (
         echo [SUCCESS] AI model is ready
     )

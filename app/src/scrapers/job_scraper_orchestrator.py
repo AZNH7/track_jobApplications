@@ -1678,6 +1678,21 @@ class JobScraperOrchestrator:
                     print(f"   🔄 LLM not available, using fallback assessment for: {job.get('title', 'Unknown')}")
                 return self._fallback_assessment(job)
             
+            # Periodic health check - test connection every 10 jobs
+            if not hasattr(self, '_llm_call_count'):
+                self._llm_call_count = 0
+            
+            self._llm_call_count += 1
+            if self._llm_call_count % 10 == 0:
+                if not self.ollama_client.test_connection():
+                    print(f"   ⚠️ LLM connection lost, attempting to reconnect...")
+                    # Try to reconnect
+                    if self.ollama_client.test_connection():
+                        print(f"   ✅ LLM reconnected successfully")
+                    else:
+                        print(f"   ❌ LLM reconnection failed, using fallback")
+                        return self._fallback_assessment(job)
+            
             # Prepare job data for LLM analysis
             job_title = job.get('title', '')
             company = job.get('company', '')
@@ -1838,6 +1853,10 @@ class JobScraperOrchestrator:
                 max_tokens=500,
                 temperature=0.1
             )
+            
+            if not response:
+                print(f"   ⚠️ LLM returned None for job: {job.get('title', 'Unknown')} - using fallback")
+                return self._fallback_assessment(job)
             
             if response:
                 try:

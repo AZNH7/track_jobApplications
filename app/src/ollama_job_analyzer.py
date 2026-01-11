@@ -34,7 +34,7 @@ class OllamaJobAnalyzer:
         if model_name:
             self.model_name = model_name
         else:
-            self.model_name = self.config_manager.get_value('llm.ollama_model', 'gemma3:1b')
+            self.model_name = self.config_manager.get_value('llm.ollama_model', 'gpt-oss:latest')
         
         self.logger = logging.getLogger(__name__)
         
@@ -63,6 +63,7 @@ class OllamaJobAnalyzer:
         retry_delay = 5
         
         for attempt in range(max_retries):
+            session = None
             try:
                 payload = {
                     "model": self.model_name,
@@ -72,18 +73,38 @@ class OllamaJobAnalyzer:
                     "options": {
                         "num_predict": max_tokens,
                         "temperature": 0.1  # Lower temperature for more consistent results
-                    }
+                    },
+                    "keep_alive": "5m"  # Keep model loaded for 5 minutes to avoid reload delays
                 }
                 
-                response = requests.post(
+                # Create a new session for each request to avoid connection reuse issues
+                session = requests.Session()
+                session.headers.update({
+                    'Connection': 'close',
+                    'Content-Type': 'application/json'
+                })
+                
+                timeout = self.config_manager.get_value('llm.ollama_timeout', 300)
+                self.logger.debug(f"Calling Ollama with model {self.model_name}, timeout {timeout}s (attempt {attempt + 1}/{max_retries})")
+                
+                response = session.post(
                     f"{self.ollama_host}/api/generate",
                     json=payload,
-                    timeout=self.config_manager.get_value('llm.ollama_timeout', 300)  # Use config timeout
+                    timeout=timeout
                 )
                 
                 if response.status_code == 200:
                     result = response.json()
-                    return result.get('response', '').strip()
+                    response_text = result.get('response', '').strip()
+                    if response_text:
+                        self.logger.debug(f"Received response from Ollama (length: {len(response_text)})")
+                        return response_text
+                    else:
+                        self.logger.warning("Ollama returned empty response")
+                        if attempt < max_retries - 1:
+                            time.sleep(retry_delay)
+                            continue
+                        return None
                 else:
                     self.logger.error(f"Ollama API error: {response.status_code}")
                     if attempt < max_retries - 1:
@@ -92,19 +113,28 @@ class OllamaJobAnalyzer:
                     return None
                     
             except requests.exceptions.Timeout:
-                self.logger.warning(f"Ollama request timed out (attempt {attempt + 1}/{max_retries})")
+                self.logger.warning(f"Ollama request timed out after {timeout}s (attempt {attempt + 1}/{max_retries})")
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
                     continue
                 else:
                     self.logger.error("All Ollama requests timed out")
                     return None
-            except Exception as e:
-                self.logger.error(f"Error calling Ollama (attempt {attempt + 1}/{max_retries}): {e}")
+            except requests.exceptions.ConnectionError as e:
+                self.logger.error(f"Connection error to Ollama (attempt {attempt + 1}/{max_retries}): {e}")
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay)
                     continue
                 return None
+            except Exception as e:
+                self.logger.error(f"Error calling Ollama (attempt {attempt + 1}/{max_retries}): {type(e).__name__}: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                    continue
+                return None
+            finally:
+                if session:
+                    session.close()
         
         return None
     

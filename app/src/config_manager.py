@@ -68,8 +68,8 @@ class ConfigManager:
             "llm": {
                 "enable_ollama": True,
                 "ollama_host": "http://localhost:11434",
-                "ollama_model": "gemma3:1b",
-                "ollama_timeout": 300,
+                "ollama_model": "gpt-oss:latest",
+                "ollama_timeout": 120,
                 "ollama_max_retries": 3,
                 "enable_job_analysis": True,
         

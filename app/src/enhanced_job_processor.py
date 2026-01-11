@@ -36,7 +36,7 @@ class EnhancedJobProcessor:
         self.config_manager = get_config_manager()
         
         self.ollama_host = ollama_host or self.config_manager.get_value('llm.ollama_host', 'http://localhost:11434')
-        self.ollama_model = ollama_model or self.config_manager.get_value('llm.ollama_model', 'gemma3:1b')
+        self.ollama_model = ollama_model or self.config_manager.get_value('llm.ollama_model', 'gpt-oss:latest')
         self.available = False
         
         # Thread management

@@ -140,7 +140,7 @@ EOF
             print_success "AI model is ready"
         else
             print_status "Downloading AI model (this may take a while)..."
-            ollama pull gemma3:1b || print_warning "Failed to download AI model. You can install it later with: ollama pull gemma3:1b"
+            ollama pull gpt-oss:latest || print_warning "Failed to download AI model. You can install it later with: ollama pull gpt-oss:latest"
         fi
     else
         print_warning "Ollama not found. AI features will be disabled."
