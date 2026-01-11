@@ -127,15 +127,15 @@ if errorlevel 1 (
     echo [WARNING] Ollama not found. AI features will be disabled.
     echo To enable AI features, install Ollama:
     echo   - Visit: https://ollama.ai/
-    echo   - Then run: ollama pull llama3.2:latest
+    echo   - Then run: ollama pull gemma3:1b
 ) else (
     echo [SUCCESS] Ollama is already installed
     echo [INFO] Checking for required models...
     
-    ollama list | findstr "llama3.2" >nul 2>&1
+    ollama list | findstr "gemma3:1b" >nul 2>&1
     if errorlevel 1 (
         echo [INFO] Downloading AI model ^(this may take a while^)...
-        ollama pull llama3.2:latest || echo [WARNING] Failed to download AI model. You can install it later with: ollama pull llama3.2:latest
+        ollama pull gpt-oss:latest || echo [WARNING] Failed to download AI model. You can install it later with: ollama pull gpt-oss:latest
     ) else (
         echo [SUCCESS] AI model is ready
     )

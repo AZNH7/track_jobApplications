@@ -22,7 +22,7 @@ class OllamaClient:
         from config_manager import get_config_manager
         config_manager = get_config_manager()
         self.host = os.getenv('OLLAMA_HOST', config_manager.get_value('llm.ollama_host', 'http://localhost:11434')).rstrip('/')
-        self.timeout = int(os.getenv('OLLAMA_TIMEOUT', config_manager.get_value('llm.ollama_timeout', 300)))
+        self.timeout = int(os.getenv('OLLAMA_TIMEOUT', config_manager.get_value('llm.ollama_timeout', 120)))
         self.max_retries = int(os.getenv('OLLAMA_MAX_RETRIES', config_manager.get_value('llm.ollama_max_retries', 3)))
         self.retry_delay = int(os.getenv('OLLAMA_RETRY_DELAY', 5))
         self.batch_size = int(os.getenv('OLLAMA_BATCH_SIZE', 8))
@@ -34,6 +34,10 @@ class OllamaClient:
         
         # Setup logging
         self.logger = logging.getLogger(__name__)
+        
+        # Track last successful request time for health monitoring
+        self.last_successful_request = None
+        self.consecutive_failures = 0
         
         # Cross-platform host resolution for Ollama
         self.host = self._resolve_ollama_host(self.host)
@@ -131,6 +135,7 @@ class OllamaClient:
             )
             if response.status_code == 200:
                 self.logger.info(f"Successfully connected to Ollama at {self.host}")
+                self.consecutive_failures = 0
                 return True
             else:
                 self.logger.warning(
@@ -147,6 +152,22 @@ class OllamaClient:
             self.logger.error(f"Unexpected error testing Ollama connection: {e}")
             return False
     
+    def check_health(self) -> bool:
+        """Check if Ollama is healthy and attempt reconnection if needed"""
+        # If we have too many consecutive failures, try to reconnect
+        if self.consecutive_failures >= 3:
+            self.logger.warning(f"Detected {self.consecutive_failures} consecutive failures, testing connection...")
+            if self.test_connection():
+                self.logger.info("Reconnected to Ollama successfully")
+                self.available = True
+                return True
+            else:
+                self.logger.error("Failed to reconnect to Ollama")
+                self.available = False
+                return False
+        
+        return self.available
+    
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
@@ -161,13 +182,20 @@ class OllamaClient:
                 'Content-Type': 'application/json'
             }
             
-            if method == 'GET':
-                response = requests.get(url, timeout=self.timeout, headers=headers)
-            else:
-                response = requests.post(url, json=payload, timeout=self.timeout, headers=headers)
+            # Create a new session for each request to avoid connection reuse issues
+            session = requests.Session()
+            session.headers.update(headers)
             
-            response.raise_for_status()
-            return response.json()
+            try:
+                if method == 'GET':
+                    response = session.get(url, timeout=self.timeout)
+                else:
+                    response = session.post(url, json=payload, timeout=self.timeout)
+                
+                response.raise_for_status()
+                return response.json()
+            finally:
+                session.close()
             
         except requests.exceptions.Timeout:
             self.logger.error(f"Request to {endpoint} timed out after {self.timeout}s")
@@ -188,7 +216,8 @@ class OllamaClient:
         """
         Generate text using Ollama with fallback handling
         """
-        if not self.available:
+        # Check health and attempt reconnection if needed
+        if not self.check_health():
             self.logger.warning("Ollama is not available. Skipping generation.")
             return None
             
@@ -197,6 +226,9 @@ class OllamaClient:
             from config_manager import get_config_manager
             config_manager = get_config_manager()
             default_model = model or config_manager.get_value('llm.ollama_model', 'llama3.2:latest')
+            
+            # Log the model being used for debugging
+            self.logger.debug(f"Using model: {default_model}")
             
             payload = {
                 "model": default_model,
@@ -209,18 +241,41 @@ class OllamaClient:
                     "top_p": 0.9,
                     "repeat_penalty": 1.1,
                     "batch_size": self.batch_size
-                }
+                },
+                "keep_alive": "5m"  # Keep model loaded for 5 minutes to avoid reload delays
             }
             
+            self.logger.debug(f"Sending request to Ollama with timeout: {self.timeout}s")
             result = self._make_request("generate", payload)
+            
             if result and 'response' in result:
-                return result['response'].strip()
+                response_text = result['response'].strip()
+                if response_text:
+                    self.logger.debug(f"Received response from Ollama (length: {len(response_text)})")
+                    # Track successful request
+                    self.last_successful_request = time.time()
+                    self.consecutive_failures = 0
+                    return response_text
+                else:
+                    self.logger.warning("Ollama returned empty response")
+                    self.consecutive_failures += 1
+                    return None
             else:
-                self.logger.warning("No response in Ollama result")
+                self.logger.warning(f"No response in Ollama result. Result keys: {result.keys() if result else 'None'}")
+                self.consecutive_failures += 1
                 return None
             
+        except requests.exceptions.Timeout as e:
+            self.logger.error(f"Ollama request timed out after {self.timeout}s: {e}")
+            self.consecutive_failures += 1
+            return None
+        except requests.exceptions.ConnectionError as e:
+            self.logger.error(f"Connection error to Ollama: {e}")
+            self.consecutive_failures += 1
+            return None
         except Exception as e:
-            self.logger.error(f"Error in generate(): {e}")
+            self.logger.error(f"Error in generate(): {type(e).__name__}: {e}", exc_info=True)
+            self.consecutive_failures += 1
             return None
     
     def get_models(self) -> Optional[Dict]:
