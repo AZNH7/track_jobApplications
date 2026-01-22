@@ -47,7 +47,7 @@ To get started with the Job Tracker application, follow these steps:
 2.  **Run the start script:**
     This will configure the environment and launch the application.
     ```bash
-    ./start.sh
+    ./setup.sh
     ```
 
 3.  **Access the application:**
@@ -119,7 +119,7 @@ docker-compose -f app/docker-compose.yml up --build
 2. **Start the Application**
    ```cmd
    # Option 1: Use the start script (if available)
-   start.sh
+   setup.sh
 
    # Option 2: Manual Docker Compose
    docker-compose -f app/docker-compose.yml up --build
@@ -170,8 +170,8 @@ docker-compose -f app/docker-compose.yml up --build
 2. **Start the Application**
    ```bash
    # Option 1: Use the start script
-   chmod +x start.sh
-   ./start.sh
+   chmod +x setup.sh
+   ./setup.sh
 
    # Option 2: Manual Docker Compose
    docker-compose -f app/docker-compose.yml up --build
@@ -250,8 +250,8 @@ curl -fsSL https://ollama.ai/install.sh | sh
 2. **Start the Application**
    ```bash
    # Option 1: Use the start script
-   chmod +x start.sh
-   ./start.sh
+   chmod +x setup.sh
+   ./setup.sh
 
    # Option 2: Manual Docker Compose
    docker-compose -f app/docker-compose.yml up --build
