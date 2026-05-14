@@ -36,8 +36,9 @@ def main():
             initial_sidebar_state="expanded"
         )
         
-        # Initialize session state
+        # Initialize session state and trim any unbounded lists accumulated this session
         SessionStateManager.initialize_session_state()
+        SessionStateManager.trim_session_state()
         
         # Initialize UI components
         ui = UIComponents()

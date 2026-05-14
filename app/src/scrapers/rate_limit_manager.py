@@ -5,6 +5,7 @@ Provides centralized rate limiting functionality for all scrapers.
 Optimized for FlareSolverr usage.
 """
 
+import logging
 import time
 import random
 from collections import defaultdict
@@ -17,6 +18,7 @@ class RateLimitManager:
     
     def __init__(self):
         """Initialize the rate limit manager."""
+        self.logger = logging.getLogger(__name__)
         # Track request timestamps per domain
         self._request_timestamps = defaultdict(list)
         
@@ -180,10 +182,10 @@ class RateLimitManager:
                 
                 # Add extra message for Cloudflare-protected domains
                 if settings.get('cloudflare_protected', False) and debug:
-                    print(f"   🛡️ Cloudflare-protected domain: {domain}")
-                    print(f"   ⏳ Enhanced rate limiting: waiting {wait_time:.1f}s")
+                    self.logger.info(f"   🛡️ Cloudflare-protected domain: {domain}")
+                    self.logger.info(f"   ⏳ Enhanced rate limiting: waiting {wait_time:.1f}s")
                 elif debug:
-                    print(f"   ⏳ Rate limiting: waiting {wait_time:.1f}s before next request to {domain}")
+                    self.logger.info(f"   ⏳ Rate limiting: waiting {wait_time:.1f}s before next request to {domain}")
                     
                 time.sleep(wait_time)
         
@@ -212,16 +214,16 @@ class RateLimitManager:
             )
             
             if debug:
-                print(f"   ⚠️ 429 Error for {domain} (attempt {attempt + 1}/{settings['max_retries'] + 1})")
+                self.logger.warning(f"   ⚠️ 429 Error for {domain} (attempt {attempt + 1}/{settings['max_retries'] + 1})")
                 if settings.get('cloudflare_protected', False):
-                    print(f"   🛡️ Cloudflare domain - using optimized backoff")
-                print(f"   🐌 Waiting {backoff_delay:.1f}s before retry...")
+                    self.logger.info(f"   🛡️ Cloudflare domain - using optimized backoff")
+                self.logger.info(f"   🐌 Waiting {backoff_delay:.1f}s before retry...")
             
             time.sleep(backoff_delay)
             return True  # Retry
         else:
             if debug:
-                print(f"   💥 Max retries reached for {domain}")
+                self.logger.info(f"   💥 Max retries reached for {domain}")
             return False  # Don't retry
 
     def handle_403_error(self, url: str, attempt: int, debug: bool = False) -> bool:
@@ -230,9 +232,9 @@ class RateLimitManager:
         settings = self._get_domain_settings(domain)
         
         if debug:
-            print(f"   🚫 HTTP 403 Forbidden for {domain}")
+            self.logger.info(f"   🚫 HTTP 403 Forbidden for {domain}")
             if settings.get('cloudflare_protected', False):
-                print(f"   🛡️ Cloudflare protection detected - FlareSolverr handling...")
+                self.logger.info(f"   🛡️ Cloudflare protection detected - FlareSolverr handling...")
         
         # For Cloudflare-protected domains, use shorter backoff since 
         # FlareSolverr should handle the challenge automatically
@@ -240,7 +242,7 @@ class RateLimitManager:
             if attempt < settings['max_retries']:
                 backoff_delay = min(5.0 * (attempt + 1), 15.0)  # Shorter delays
                 if debug:
-                    print(f"   🔄 Cloudflare retry in {backoff_delay:.1f}s...")
+                    self.logger.info(f"   🔄 Cloudflare retry in {backoff_delay:.1f}s...")
                 time.sleep(backoff_delay)
                 return True
         else:
@@ -251,7 +253,7 @@ class RateLimitManager:
                     settings['max_backoff']
                 )
                 if debug:
-                    print(f"   🐌 Waiting {backoff_delay:.1f}s before retry after 403...")
+                    self.logger.info(f"   🐌 Waiting {backoff_delay:.1f}s before retry after 403...")
                 time.sleep(backoff_delay)
                 return True
         
@@ -301,12 +303,12 @@ class RateLimitManager:
             except requests.exceptions.RequestException as e:
                 if attempt < settings['max_retries']:
                     if debug:
-                        print(f"   ⚠️ Request error for {domain} (attempt {attempt + 1}/{settings['max_retries'] + 1}): {e}")
+                        self.logger.warning(f"   ⚠️ Request error for {domain} (attempt {attempt + 1}/{settings['max_retries'] + 1}): {e}")
                     time.sleep(random.uniform(1, 3))
                     continue
                 else:
                     if debug:
-                        print(f"   💥 Max retries reached for {domain}: {e}")
+                        self.logger.info(f"   💥 Max retries reached for {domain}: {e}")
                     raise
         
         return None

@@ -92,10 +92,10 @@ class BrowserAutomation:
             self.driver.get(url)
             
             # Inform the user to solve the CAPTCHA
-            print("\n" + "="*50)
-            print("❗ ACTION REQUIRED: Please solve the CAPTCHA in the browser window.")
-            print(f"   You have {max_wait} seconds to solve it.")
-            print("="*50 + "\n")
+            self.logger.info("\n" + "="*50)
+            self.logger.info("❗ ACTION REQUIRED: Please solve the CAPTCHA in the browser window.")
+            self.logger.info(f"   You have {max_wait} seconds to solve it.")
+            self.logger.info("="*50 + "\n")
             
             # Wait for the user to solve the CAPTCHA
             # A simple time.sleep is used here, but more advanced solutions

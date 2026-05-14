@@ -4,6 +4,7 @@ StepStone Job Scraper
 Handles all StepStone-specific job scraping functionality.
 """
 
+import logging
 import requests
 import time
 import random
@@ -65,7 +66,7 @@ class StepStoneScraper(BaseScraper):
 
         try:
             for keyword in keyword_list:
-                print(f"\n--- Searching StepStone.com for: '{keyword}' ---")
+                self.logger.info(f"\n--- Searching StepStone.com for: '{keyword}' ---")
                 # Store current search location for fallback in parsing
                 self._current_search_location = location
                 
@@ -108,7 +109,7 @@ class StepStoneScraper(BaseScraper):
                         
                         search_url = f"{base_search_url}?{urlencode(params)}"
                     
-                    print(f"📄 Fetching StepStone page {page} for '{keyword}'")
+                    self.logger.info(f"📄 Fetching StepStone page {page} for '{keyword}'")
                     
                     response = self.get_page(search_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'}, timeout=30)
                     
@@ -119,21 +120,21 @@ class StepStoneScraper(BaseScraper):
                             page_jobs = self._extract_stepstone_jobs(soup, search_url)
                     else:
                         status_code = response.status_code if response else 'N/A'
-                        print(f"   ❌ HTTP {status_code} for page {page}")
+                        self.logger.error(f"   ❌ HTTP {status_code} for page {page}")
 
                     if page_jobs:
                         all_jobs.extend(page_jobs)
-                        print(f"   Found {len(page_jobs)} jobs on page {page} for '{keyword}'")
+                        self.logger.info(f"   Found {len(page_jobs)} jobs on page {page} for '{keyword}'")
 
                     # Break if no jobs found (likely end of results)
                     if page > 1 and not page_jobs:
-                        print("   ℹ️ No more jobs found for this keyword")
+                        self.logger.info("   ℹ️ No more jobs found for this keyword")
                         break
                     
                     time.sleep(random.uniform(1, 3))
                 
         except Exception as e:
-            print(f"❌ Error during StepStone search: {e}")
+            self.logger.error(f"❌ Error during StepStone search: {e}")
         
         # Deduplicate results
         seen_urls = set()
@@ -143,7 +144,7 @@ class StepStoneScraper(BaseScraper):
                 unique_jobs.append(job)
                 seen_urls.add(job_url)
 
-        print(f"\n🎯 Total unique StepStone jobs found: {len(unique_jobs)}")
+        self.logger.info(f"\n🎯 Total unique StepStone jobs found: {len(unique_jobs)}")
         return unique_jobs
 
     def _extract_stepstone_jobs(self, soup: BeautifulSoup, page_url: str) -> List[Dict]:
@@ -179,11 +180,11 @@ class StepStoneScraper(BaseScraper):
                 if cards:
                     job_cards = cards
                     if self.debug:
-                        print(f"   🎯 Found {len(cards)} job cards using pattern: {pattern}")
+                        self.logger.info(f"   🎯 Found {len(cards)} job cards using pattern: {pattern}")
                     break
             
             if not job_cards and self.debug:
-                print("   ⚠️ No job cards found with any pattern, trying emergency fallback")
+                self.logger.warning("   ⚠️ No job cards found with any pattern, trying emergency fallback")
                 # Emergency fallback: look for any elements with job-related text
                 all_elements = soup.find_all(['div', 'article', 'li'])
                 job_cards = [elem for elem in all_elements if elem.get_text() and any(keyword in elem.get_text().lower() for keyword in ['developer', 'engineer', 'administrator', 'manager', 'analyst'])]
@@ -196,11 +197,11 @@ class StepStoneScraper(BaseScraper):
                             jobs.append(job_data)
                 except Exception as e:
                     if self.debug:
-                        print(f"   ⚠️ Error parsing StepStone job card: {e}")
+                        self.logger.warning(f"   ⚠️ Error parsing StepStone job card: {e}")
                     continue
                     
         except Exception as e:
-            print(f"❌ Error extracting StepStone jobs: {e}")
+            self.logger.error(f"❌ Error extracting StepStone jobs: {e}")
         
         return jobs
 
@@ -383,7 +384,7 @@ class StepStoneScraper(BaseScraper):
                             salary = match.group(1)
                 
                 if salary and self.debug:
-                    print(f"   💰 Found salary in job card: '{salary}'")
+                    self.logger.info(f"   💰 Found salary in job card: '{salary}'")
 
                 # Enhanced description extraction from job card
                 description = self._extract_description_from_card(card)
@@ -403,7 +404,7 @@ class StepStoneScraper(BaseScraper):
                 
         except Exception as e:
             if self.debug:
-                print(f"   ⚠️ Error parsing StepStone job card: {e}")
+                self.logger.warning(f"   ⚠️ Error parsing StepStone job card: {e}")
             return {}
 
     def _extract_with_selectors(self, card: BeautifulSoup, selectors: List[Dict]) -> str:
@@ -427,9 +428,9 @@ class StepStoneScraper(BaseScraper):
                 
                 if element:
                     return element.get_text(strip=True)
-            except:
+            except (AttributeError, TypeError):
                 continue
-        
+
         return ""
 
     def _extract_text_by_priority(self, card: BeautifulSoup, tags: List[str]) -> str:
@@ -717,11 +718,11 @@ class StepStoneScraper(BaseScraper):
             # Check cache first
             cached_details = job_details_cache.get_job_details_with_retry(job_url, max_retries=2, retry_delay=0.5)
             if cached_details:
-                print(f"   📋 Using cached job details for: {job_url}")
+                self.logger.info(f"   📋 Using cached job details for: {job_url}")
                 return cached_details
             
             # If not in cache, fetch fresh data
-            print(f"   🔄 Fetching fresh job details for: {job_url}")
+            self.logger.info(f"   🔄 Fetching fresh job details for: {job_url}")
             
             html_content = None
             
@@ -746,11 +747,11 @@ class StepStoneScraper(BaseScraper):
             else:
                 status_code = response.status_code if response else 'N/A'
                 error_msg = f"HTTP {status_code} error for job details: {job_url}"
-                print(f"   ❌ {error_msg}")
+                self.logger.error(f"   ❌ {error_msg}")
                 
                 # For StepStone, we'll skip deep scraping and use search result data
                 # since many job detail pages are blocked
-                print(f"   ⚠️ StepStone job details often blocked - using search result data")
+                self.logger.warning(f"   ⚠️ StepStone job details often blocked - using search result data")
                 
                 # Cache the failure with comprehensive details
                 error_details = {
@@ -771,15 +772,15 @@ class StepStoneScraper(BaseScraper):
                 
                 success = job_details_cache.cache_job_details(job_url, error_details, is_valid=False, error_message=error_msg)
                 if success:
-                    print(f"   💾 Cached HTTP error for: {job_url}")
+                    self.logger.info(f"   💾 Cached HTTP error for: {job_url}")
                 else:
-                    print(f"   ❌ Failed to cache HTTP error for: {job_url}")
+                    self.logger.error(f"   ❌ Failed to cache HTTP error for: {job_url}")
                     
                 return None
 
             if not html_content:
                 error_msg = "No HTML content received for job details"
-                print(f"   ❌ {error_msg}")
+                self.logger.error(f"   ❌ {error_msg}")
                 
                 # Cache the failure with comprehensive details
                 error_details = {
@@ -800,9 +801,9 @@ class StepStoneScraper(BaseScraper):
                 
                 success = job_details_cache.cache_job_details(job_url, error_details, is_valid=False, error_message=error_msg)
                 if success:
-                    print(f"   💾 Cached no-content error for: {job_url}")
+                    self.logger.info(f"   💾 Cached no-content error for: {job_url}")
                 else:
-                    print(f"   ❌ Failed to cache no-content error for: {job_url}")
+                    self.logger.error(f"   ❌ Failed to cache no-content error for: {job_url}")
                 
                 return None
 
@@ -849,11 +850,11 @@ class StepStoneScraper(BaseScraper):
                         elif min_value:
                             salary = f"From {min_value} € per {unit}"
                     
-                    print(f"   ✅ Extracted data from JSON-LD: title='{title[:50]}...', company='{company}', location='{location}', salary='{salary}'")
+                    self.logger.info(f"   ✅ Extracted data from JSON-LD: title='{title[:50]}...', company='{company}', location='{location}', salary='{salary}'")
                     if salary and self.debug:
-                        print(f"   💰 Found salary in JSON-LD: '{salary}'")
+                        self.logger.info(f"   💰 Found salary in JSON-LD: '{salary}'")
                 except json.JSONDecodeError as e:
-                    print(f"   ⚠️ Failed to parse JSON-LD: {e}")
+                    self.logger.warning(f"   ⚠️ Failed to parse JSON-LD: {e}")
             
             # Enhanced fallback extraction with comprehensive HTML pattern matching
             if not title:
@@ -916,7 +917,7 @@ class StepStoneScraper(BaseScraper):
                             break
                 
                 if salary and self.debug:
-                    print(f"   💰 Found salary in HTML fallback: '{salary}'")
+                    self.logger.info(f"   💰 Found salary in HTML fallback: '{salary}'")
             
             if not company:
                 company_selectors = [
@@ -965,23 +966,23 @@ class StepStoneScraper(BaseScraper):
             }
             
             # Cache the details with comprehensive information
-            print(f"   💾 Caching comprehensive job details for: {job_url}")
-            print(f"   📋 Title: {title[:50]}...")
-            print(f"   🏭 Company: {company}")
-            print(f"   📍 Location: {location}")
+            self.logger.info(f"   💾 Caching comprehensive job details for: {job_url}")
+            self.logger.info(f"   📋 Title: {title[:50]}...")
+            self.logger.info(f"   🏭 Company: {company}")
+            self.logger.info(f"   📍 Location: {location}")
             
             success = job_details_cache.cache_job_details(job_url, details)
             if success:
-                print(f"   ✅ Successfully cached job details")
+                self.logger.info(f"   ✅ Successfully cached job details")
             else:
-                print(f"   ❌ Failed to cache job details")
+                self.logger.error(f"   ❌ Failed to cache job details")
             
             return details
 
         except Exception as e:
             error_msg = f"Error fetching StepStone job details for {job_url}: {e}"
             if self.debug:
-                print(f"   ❌ {error_msg}")
+                self.logger.error(f"   ❌ {error_msg}")
             
             # Cache the error with comprehensive details
             try:
@@ -1008,11 +1009,11 @@ class StepStoneScraper(BaseScraper):
                 # Cache as invalid with error message
                 success = job_details_cache.cache_job_details(job_url, error_details, is_valid=False, error_message=error_msg)
                 if success:
-                    print(f"   💾 Cached error details for: {job_url}")
+                    self.logger.info(f"   💾 Cached error details for: {job_url}")
                 else:
-                    print(f"   ❌ Failed to cache error details for: {job_url}")
+                    self.logger.error(f"   ❌ Failed to cache error details for: {job_url}")
                     
             except Exception as cache_error:
-                print(f"   ❌ Failed to cache error: {cache_error}")
+                self.logger.error(f"   ❌ Failed to cache error: {cache_error}")
             
             return None 

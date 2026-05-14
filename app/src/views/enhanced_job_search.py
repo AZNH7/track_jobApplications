@@ -267,25 +267,43 @@ class EnhancedJobSearchView(BaseView):
             all_titles = []
             if job_titles_text:
                 all_titles.extend([t.strip() for t in job_titles_text.split('\n') if t.strip()])
-            
+
             # If no titles from form but we have loaded search data, use that
             if not all_titles and 'loaded_search' in st.session_state:
                 loaded_titles = st.session_state.loaded_search.get('job_titles', '')
                 if loaded_titles:
                     all_titles.extend([t.strip() for t in loaded_titles.split('\n') if t.strip()])
-            
+
             all_titles = list(dict.fromkeys(all_titles))
 
             if not all_titles:
                 st.error("❌ Please enter at least one job title")
                 return
-            
+
+            # Sanitize job titles: strip control chars, limit length
+            import re as _re
+            all_titles = [_re.sub(r'[\x00-\x1f\x7f]', '', t)[:200] for t in all_titles]
+            all_titles = [t for t in all_titles if t]
+            if not all_titles:
+                st.error("❌ Job titles contained only invalid characters")
+                return
+
+            # Sanitize location
+            location = _re.sub(r'[\x00-\x1f\x7f]', '', location)[:200]
+
             # If no platforms from form but we have loaded search data, use that
             if not selected_platforms and 'loaded_search' in st.session_state:
                 selected_platforms = st.session_state.loaded_search.get('platforms', [])
-            
+
             if not selected_platforms:
                 st.error("❌ Please select at least one platform")
+                return
+
+            # Validate selected platforms against known list to prevent injection
+            valid_platforms = set(working_platforms)
+            selected_platforms = [p for p in selected_platforms if p in valid_platforms]
+            if not selected_platforms:
+                st.error("❌ No valid platforms selected")
                 return
 
             if location:
@@ -813,12 +831,12 @@ class EnhancedJobSearchView(BaseView):
                     job['language'] = temp_orchestrator._llm_detect_language(job.get('description', ''))
                     job['job_snippet'] = llm_assessment.get('job_snippet', '')
                     
-                    print(f"🤖 Applied LLM assessment to job: {job.get('title', 'Unknown')}")
-                    print(f"   - Quality Score: {job['llm_quality_score']}/10")
-                    print(f"   - Relevance Score: {job['llm_relevance_score']}/10")
-                    
+                    self.logger.info(f"🤖 Applied LLM assessment to job: {job.get('title', 'Unknown')}")
+                    self.logger.debug(f"   - Quality Score: {job['llm_quality_score']}/10")
+                    self.logger.debug(f"   - Relevance Score: {job['llm_relevance_score']}/10")
+
                 except Exception as e:
-                    print(f"⚠️ LLM assessment failed for job {job.get('title', 'Unknown')}: {e}")
+                    self.logger.warning(f"⚠️ LLM assessment failed for job {job.get('title', 'Unknown')}: {e}")
                     # Continue with basic assessment
                     job['llm_quality_score'] = 5  # Default medium quality
                     job['llm_relevance_score'] = 7  # Default assumption of relevance

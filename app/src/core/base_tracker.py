@@ -28,7 +28,7 @@ class BaseJobTracker:
         # Get LLM configuration
         ollama_config = self.config_manager.get_setting("llm", {})
         ollama_host = os.getenv("OLLAMA_HOST", ollama_config.get("ollama_host", "http://localhost:11434"))
-        ollama_model = os.getenv("OLLAMA_MODEL", ollama_config.get("ollama_model", "llama3:8b"))
+        ollama_model = os.getenv("OLLAMA_MODEL", ollama_config.get("ollama_model", "gpt-oss:latest"))
         
         # Get FlareSolverr URL from config
         flaresolverr_config = self.config_manager.get_setting("flaresolverr", {})

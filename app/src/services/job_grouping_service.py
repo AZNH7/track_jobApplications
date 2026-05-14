@@ -10,11 +10,6 @@ from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass
 from collections import defaultdict
 import re
-import sys
-from pathlib import Path
-
-# Add parent directory to path
-sys.path.append(str(Path(__file__).parent.parent))
 from ollama_client import ollama_client
 
 @dataclass

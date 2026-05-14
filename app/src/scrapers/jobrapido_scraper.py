@@ -4,6 +4,7 @@ JobRapido Job Scraper
 Handles all JobRapido-specific job scraping functionality.
 """
 
+import logging
 import requests
 import time
 import random
@@ -66,12 +67,12 @@ class JobrapidoScraper(BaseScraper):
 
         try:
             for keyword in keyword_list:
-                print(f"\n--- Searching JobRapido for: '{keyword}' (Enhanced Cloudflare Bypass) ---")
+                self.logger.info(f"\n--- Searching JobRapido for: '{keyword}' (Enhanced Cloudflare Bypass) ---")
                 self._current_search_location = location
                 
                 # JobRapido-specific anti-detection measures
                 if self.debug:
-                    print("🛡️ Using enhanced cloudscraper session for JobRapido")
+                    self.logger.info("🛡️ Using enhanced cloudscraper session for JobRapido")
                 
                 for page in range(1, max_pages + 1):
                     params = {'q': keyword, 'p': page}
@@ -80,9 +81,9 @@ class JobrapidoScraper(BaseScraper):
                     
                     search_url = f"{self.base_url}/?" + urlencode(params)
                     
-                    print(f"📄 Fetching JobRapido page {page} for '{keyword}'")
+                    self.logger.info(f"📄 Fetching JobRapido page {page} for '{keyword}'")
                     if self.debug:
-                        print(f"   🔍 URL: {search_url}")
+                        self.logger.info(f"   🔍 URL: {search_url}")
                     
                     # Enhanced headers specifically for JobRapido
                     headers = {
@@ -107,18 +108,18 @@ class JobrapidoScraper(BaseScraper):
                         # Check for Cloudflare challenge indicators in response
                         if self._detect_cloudflare_challenge(response.text):
                             if self.debug:
-                                print("   🛡️ Cloudflare challenge detected - cloudscraper handling...")
+                                self.logger.info("   🛡️ Cloudflare challenge detected - cloudscraper handling...")
                             # Cloudscraper should handle this automatically, but log it
                         
                         soup = self.get_soup(response.text)
                         if soup:
                             # Check for invalid pages that might indicate failed bypass
                             if self._detect_invalid_search_results(soup, search_url):
-                                print(f"   🚫 Invalid search results detected on page {page}")
+                                self.logger.info(f"   🚫 Invalid search results detected on page {page}")
                                 if page == 1:
                                     # If first page is invalid, try refreshing session
                                     if hasattr(self, '_refresh_session'):
-                                        print("   🔄 Refreshing session due to invalid results...")
+                                        self.logger.info("   🔄 Refreshing session due to invalid results...")
                                         self._refresh_session()
                                         # Retry the request with fresh session
                                         response = self.get_page(search_url, headers=headers, timeout=60)
@@ -130,39 +131,39 @@ class JobrapidoScraper(BaseScraper):
                             else:
                                 page_jobs = self._extract_jobrapido_jobs(soup, search_url)
                         else:
-                            print(f"   ⚠️ Failed to parse HTML for page {page}")
+                            self.logger.warning(f"   ⚠️ Failed to parse HTML for page {page}")
                             
                     elif response and response.status_code == 403:
-                        print(f"   🚫 HTTP 403 (Cloudflare Protection) for page {page}")
+                        self.logger.info(f"   🚫 HTTP 403 (Cloudflare Protection) for page {page}")
                         if self.debug:
-                            print("   🛡️ Cloudflare protection active - session will auto-refresh")
+                            self.logger.info("   🛡️ Cloudflare protection active - session will auto-refresh")
                         # Session refresh is handled in base_scraper.py
                         if page == 1:
                             break  # Exit keyword search if first page blocked
                             
                     elif response and response.status_code == 429:
-                        print(f"   ⚠️ HTTP 429 (Rate Limited) for page {page}")
+                        self.logger.warning(f"   ⚠️ HTTP 429 (Rate Limited) for page {page}")
                         if self.debug:
-                            print("   🐌 Implementing additional delay...")
+                            self.logger.info("   🐌 Implementing additional delay...")
                         # Add extra delay for rate limiting
                         time.sleep(random.uniform(10, 20))
                         continue
                         
                     else:
                         status_code = response.status_code if response else 'N/A'
-                        print(f"   ❌ HTTP {status_code} for page {page}")
+                        self.logger.error(f"   ❌ HTTP {status_code} for page {page}")
                         if status_code in ['N/A', 500, 502, 503, 504]:
                             # Server errors - wait and retry
-                            print(f"   🔄 Retrying in 10s due to server error...")
+                            self.logger.info(f"   🔄 Retrying in 10s due to server error...")
                             time.sleep(10)
                             continue
 
                     if page_jobs:
                         all_jobs.extend(page_jobs)
-                        print(f"   ✅ Found {len(page_jobs)} jobs on page {page} for '{keyword}'")
+                        self.logger.info(f"   ✅ Found {len(page_jobs)} jobs on page {page} for '{keyword}'")
 
                     if page > 1 and not page_jobs:
-                        print("   ℹ️ No more jobs found for this keyword")
+                        self.logger.info("   ℹ️ No more jobs found for this keyword")
                         break
                     
                     # Adaptive delay based on response
@@ -174,14 +175,14 @@ class JobrapidoScraper(BaseScraper):
                         delay = random.uniform(8, 15)
                         
                     if self.debug:
-                        print(f"   ⏳ Waiting {delay:.1f}s before next request...")
+                        self.logger.info(f"   ⏳ Waiting {delay:.1f}s before next request...")
                     time.sleep(delay)
                 
         except Exception as e:
-            print(f"❌ Error during JobRapido search: {e}")
+            self.logger.error(f"❌ Error during JobRapido search: {e}")
             if self.debug:
                 import traceback
-                print(f"   📋 Stack trace: {traceback.format_exc()}")
+                self.logger.info(f"   📋 Stack trace: {traceback.format_exc()}")
         
         # Deduplicate results
         seen_urls = set()
@@ -191,7 +192,7 @@ class JobrapidoScraper(BaseScraper):
                 unique_jobs.append(job)
                 seen_urls.add(job_url)
 
-        print(f"\n🎯 Total unique JobRapido jobs found: {len(unique_jobs)}")
+        self.logger.info(f"\n🎯 Total unique JobRapido jobs found: {len(unique_jobs)}")
         return unique_jobs
 
     def _detect_invalid_search_results(self, soup: BeautifulSoup, page_url: str) -> bool:
@@ -224,7 +225,7 @@ class JobrapidoScraper(BaseScraper):
             # If we found job elements, the page is likely valid regardless of other indicators
             if job_elements and len(job_elements) > 5:
                 if self.debug:
-                    print(f"   ✅ Found {len(job_elements)} job elements, page appears valid")
+                    self.logger.info(f"   ✅ Found {len(job_elements)} job elements, page appears valid")
                 return False
             
             # Check if the page has job-related elements in text
@@ -234,20 +235,20 @@ class JobrapidoScraper(BaseScraper):
             # Only consider invalid if we have invalid indicators AND very few job-related terms
             if any(indicator in page_text for indicator in invalid_indicators) and job_related_count < 3:
                 if self.debug:
-                    print(f"   🚫 Detected invalid search results page: {page_url}")
+                    self.logger.info(f"   🚫 Detected invalid search results page: {page_url}")
                 return True
             
             # More lenient check - only consider invalid if very few job-related terms AND page is very short
             if job_related_count < 1 and len(page_text) < 500:
                 if self.debug:
-                    print(f"   ⚠️ Page has very few job-related terms and is short, might be invalid")
+                    self.logger.warning(f"   ⚠️ Page has very few job-related terms and is short, might be invalid")
                 return True
             
             return False
             
         except Exception as e:
             if self.debug:
-                print(f"   ⚠️ Error detecting invalid search results: {e}")
+                self.logger.warning(f"   ⚠️ Error detecting invalid search results: {e}")
             return False
 
     def _extract_jobrapido_jobs(self, soup: BeautifulSoup, page_url: str) -> List[Dict]:
@@ -257,7 +258,7 @@ class JobrapidoScraper(BaseScraper):
         try:
             # First, check if this is a valid search results page
             if self._detect_invalid_search_results(soup, page_url):
-                print(f"   🚫 Invalid search results detected, skipping page")
+                self.logger.info(f"   🚫 Invalid search results detected, skipping page")
                 return []
             
             # Enhanced JobRapido job cards selectors
@@ -289,12 +290,12 @@ class JobrapidoScraper(BaseScraper):
                     if valid_cards:
                         job_cards = valid_cards
                         if self.debug:
-                            print(f"   🎯 Found {len(valid_cards)} valid job cards using pattern: {pattern}")
+                            self.logger.info(f"   🎯 Found {len(valid_cards)} valid job cards using pattern: {pattern}")
                         break
             
             # Fallback: look for any elements with job-related attributes or text
             if not job_cards and self.debug:
-                print("   ⚠️ No job cards found with any pattern")
+                self.logger.warning("   ⚠️ No job cards found with any pattern")
             
             for card in job_cards:
                 try:
@@ -304,11 +305,11 @@ class JobrapidoScraper(BaseScraper):
                             jobs.append(job_data)
                 except Exception as e:
                     if self.debug:
-                        print(f"   ⚠️ Error parsing JobRapido job card: {e}")
+                        self.logger.warning(f"   ⚠️ Error parsing JobRapido job card: {e}")
                     continue
                     
         except Exception as e:
-            print(f"❌ Error extracting JobRapido jobs: {e}")
+            self.logger.error(f"❌ Error extracting JobRapido jobs: {e}")
         
         return jobs
 
@@ -394,16 +395,16 @@ class JobrapidoScraper(BaseScraper):
             # Check cache first with retry mechanism
             cached_details = job_details_cache.get_job_details_with_retry(job_url, max_retries=2, retry_delay=0.5)
             if cached_details:
-                print(f"   📋 Using cached job details for: {job_url}")
+                self.logger.info(f"   📋 Using cached job details for: {job_url}")
                 return cached_details
             
             # If not in cache, fetch fresh data
-            print(f"   🔄 Fetching fresh job details for: {job_url}")
+            self.logger.info(f"   🔄 Fetching fresh job details for: {job_url}")
             
             # Skip fetching if URL contains template variables
             if '[[' in job_url and ']]' in job_url:
                 if self.debug:
-                    print(f"   ⚠️ Skipping URL with template variables: {job_url}")
+                    self.logger.warning(f"   ⚠️ Skipping URL with template variables: {job_url}")
                 error_details = {
                     "title": "Error - Template Variables",
                     "company": "Unknown",
@@ -425,7 +426,7 @@ class JobrapidoScraper(BaseScraper):
             # Validate URL format and domain
             if not job_url or not job_url.startswith('http'):
                 if self.debug:
-                    print(f"   ⚠️ Skipping invalid URL format: {job_url}")
+                    self.logger.warning(f"   ⚠️ Skipping invalid URL format: {job_url}")
                 error_details = {
                     "title": "Error - Invalid URL Format",
                     "company": "Unknown",
@@ -451,7 +452,7 @@ class JobrapidoScraper(BaseScraper):
             ]
             if any(invalid_domain in job_url.lower() for invalid_domain in invalid_domains):
                 if self.debug:
-                    print(f"   ⚠️ Skipping URL with invalid domain: {job_url}")
+                    self.logger.warning(f"   ⚠️ Skipping URL with invalid domain: {job_url}")
                 error_details = {
                     "title": "Error - Invalid Domain",
                     "company": "Unknown",
@@ -472,15 +473,15 @@ class JobrapidoScraper(BaseScraper):
             
             # Step 1: Get the JobRapido job page to find the "Angebot anzeigen" button
             if self.debug:
-                print(f"   📄 Fetching JobRapido page: {job_url}")
+                self.logger.info(f"   📄 Fetching JobRapido page: {job_url}")
             
             html_content = None
             response = self.get_page(job_url, timeout=30)
             if response and response.status_code == 200:
                 html_content = response.text
-                print(f"   ✅ JobRapido page fetched successfully")
+                self.logger.info(f"   ✅ JobRapido page fetched successfully")
             else:
-                print(f"   ❌ Failed to fetch JobRapido page: HTTP {response.status_code if response else 'No response'}")
+                self.logger.error(f"   ❌ Failed to fetch JobRapido page: HTTP {response.status_code if response else 'No response'}")
                 return None
             
             soup = self.get_soup(html_content)
@@ -502,19 +503,19 @@ class JobrapidoScraper(BaseScraper):
                         if href and href.startswith('http') and 'jobrapido.com' not in href:
                             external_url = href
                             if self.debug:
-                                print(f"   🔗 Found external URL: {external_url}")
+                                self.logger.info(f"   🔗 Found external URL: {external_url}")
                             break
                     if external_url:
                         break
                 except Exception as e:
                     if self.debug:
-                        print(f"   ⚠️ Error with selector: {e}")
+                        self.logger.warning(f"   ⚠️ Error with selector: {e}")
                     continue
             
             # If no external URL found, return basic info from JobRapido page
             if not external_url:
                 if self.debug:
-                    print(f"   ⚠️ No external URL found, using JobRapido page content")
+                    self.logger.warning(f"   ⚠️ No external URL found, using JobRapido page content")
                 description = ""
                 description_selectors = [
                     'div.job-description',
@@ -549,15 +550,15 @@ class JobrapidoScraper(BaseScraper):
             
             # Step 3: Fetch the actual external job posting
             if self.debug:
-                print(f"   🌐 Fetching external job posting: {external_url}")
+                self.logger.info(f"   🌐 Fetching external job posting: {external_url}")
             try:
                 external_html = None
                 response = self.get_page(external_url, timeout=30)
                 if response and response.status_code == 200:
                     external_html = response.text
-                    print(f"   ✅ External job posting fetched successfully")
+                    self.logger.info(f"   ✅ External job posting fetched successfully")
                 else:
-                    print(f"   ❌ Failed to fetch external job posting: HTTP {response.status_code if response else 'No response'}")
+                    self.logger.error(f"   ❌ Failed to fetch external job posting: HTTP {response.status_code if response else 'No response'}")
                     return None
                 external_soup = self.get_soup(external_html)
                 # Extract comprehensive job details from the external site
@@ -647,13 +648,13 @@ class JobrapidoScraper(BaseScraper):
                         result['requirements'] = req_elem.get_text('\n', strip=True)
                         break
                 if self.debug:
-                    print(f"   ✅ Extracted {len(result)} fields from external job posting")
-                    print(f"   Fields: {list(result.keys())}")
+                    self.logger.info(f"   ✅ Extracted {len(result)} fields from external job posting")
+                    self.logger.info(f"   Fields: {list(result.keys())}")
                 job_details_cache.cache_job_details(job_url, result)
                 return result
             except Exception as e:
                 if self.debug:
-                    print(f"   ⚠️ Error fetching external job posting {external_url}: {e}")
+                    self.logger.warning(f"   ⚠️ Error fetching external job posting {external_url}: {e}")
                 error_details = {
                     "title": "Error - External Fetch",
                     "company": "Unknown",
@@ -673,7 +674,7 @@ class JobrapidoScraper(BaseScraper):
                 return None
         except Exception as e:
             if self.debug:
-                print(f"   ⚠️ Error fetching JobRapido job details for {job_url}: {e}")
+                self.logger.warning(f"   ⚠️ Error fetching JobRapido job details for {job_url}: {e}")
             error_details = {
                 "title": "Error - Job Details Fetch",
                 "company": "Unknown",

@@ -4,6 +4,7 @@ Job Listings Table
 Handles all operations related to the job_listings table.
 """
 
+import hashlib
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from .base_table import BaseTable
@@ -31,25 +32,62 @@ class JobListingsTable(BaseTable):
                 llm_filtered BOOLEAN DEFAULT FALSE,
                 llm_quality_score DECIMAL(4,2),
                 llm_relevance_score DECIMAL(4,2),
-                llm_reasoning TEXT
+                llm_reasoning TEXT,
+                content_hash TEXT
             )
         ''')
+        # Migration for existing databases: add content_hash if the table pre-dates this column
+        cursor.execute(
+            'ALTER TABLE job_listings ADD COLUMN IF NOT EXISTS content_hash TEXT'
+        )
     
     def create_indexes(self, cursor) -> None:
         """Create indexes for job_listings table."""
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_job_listings_url ON job_listings(url)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_job_listings_source ON job_listings(source)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_job_listings_scraped_date ON job_listings(scraped_date)')
+        # Partial unique index for cross-platform deduplication; NULL hashes are excluded
+        # so jobs without enough data to hash are never mistakenly deduplicated.
+        cursor.execute(
+            'CREATE UNIQUE INDEX IF NOT EXISTS idx_job_listings_content_hash '
+            'ON job_listings(content_hash) WHERE content_hash IS NOT NULL'
+        )
     
+    @staticmethod
+    def _compute_content_hash(title: str, company: str) -> Optional[str]:
+        """MD5 of normalised title+company — used for cross-platform deduplication.
+
+        Returns None when either field is empty so that jobs with missing data
+        are never incorrectly deduplicated against each other.
+        """
+        if not title or not company:
+            return None
+        key = f"{title.strip().lower()}|{company.strip().lower()}"
+        return hashlib.md5(key.encode()).hexdigest()
+
     def insert_job(self, job_data: Dict[str, Any]) -> Optional[int]:
-        """Insert a new job listing."""
+        """Insert a new job listing, deduplicating across platforms via content_hash."""
         try:
+            content_hash = self._compute_content_hash(
+                job_data.get('title', ''), job_data.get('company', '')
+            )
+
+            # Cross-platform dedup: if another platform already stored this job,
+            # return its ID without creating a duplicate record.
+            if content_hash:
+                existing = self.execute_query(
+                    'SELECT id FROM job_listings WHERE content_hash = %s',
+                    (content_hash,), fetch='one'
+                )
+                if existing:
+                    return existing[0]
+
             query = """
                 INSERT INTO job_listings (
-                    title, company, location, salary, url, source, scraped_date, 
+                    title, company, location, salary, url, source, scraped_date,
                     posted_date, description, language, job_snippet, llm_filtered,
-                    llm_quality_score, llm_relevance_score, llm_reasoning
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    llm_quality_score, llm_relevance_score, llm_reasoning, content_hash
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (url) DO UPDATE SET
                     title = EXCLUDED.title,
                     company = EXCLUDED.company,
@@ -64,10 +102,11 @@ class JobListingsTable(BaseTable):
                     llm_filtered = EXCLUDED.llm_filtered,
                     llm_quality_score = EXCLUDED.llm_quality_score,
                     llm_relevance_score = EXCLUDED.llm_relevance_score,
-                    llm_reasoning = EXCLUDED.llm_reasoning
+                    llm_reasoning = EXCLUDED.llm_reasoning,
+                    content_hash = EXCLUDED.content_hash
                 RETURNING id
             """
-            
+
             params = (
                 job_data.get('title'),
                 job_data.get('company'),
@@ -83,17 +122,18 @@ class JobListingsTable(BaseTable):
                 job_data.get('llm_filtered', False),
                 job_data.get('llm_quality_score'),
                 job_data.get('llm_relevance_score'),
-                job_data.get('llm_reasoning')
+                job_data.get('llm_reasoning'),
+                content_hash,
             )
-            
+
             result = self.execute_query(query, params, fetch='one')
             return result[0] if result else None
-            
+
         except Exception as e:
             self.log_error("insert_job", e)
             return None
     
-    def get_all_jobs(self, limit: int = None) -> List[Dict[str, Any]]:
+    def get_all_jobs(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get all jobs ordered by scraped_date DESC."""
         try:
             if limit:

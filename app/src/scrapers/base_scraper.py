@@ -4,6 +4,7 @@ Base Scraper Class
 Contains common functionality shared across all job scrapers.
 """
 
+import logging
 import requests
 import time
 import random
@@ -18,6 +19,12 @@ import json
 from collections import Counter
 from abc import ABC, abstractmethod
 
+try:
+    from constants import SESSION_403_WINDOW_SECS, SESSION_MAX_AGE_SECS
+except ImportError:
+    SESSION_403_WINDOW_SECS = 300
+    SESSION_MAX_AGE_SECS = 1800
+
 class BaseScraper(ABC):
     """Base class for all job scrapers with common functionality."""
     
@@ -30,22 +37,23 @@ class BaseScraper(ABC):
             use_flaresolverr: Use FlareSolverr for requests (default: True)
         """
         self.debug = debug
+        self.logger = logging.getLogger(__name__)
         self.use_flaresolverr = use_flaresolverr
         self.session = None
         self._session_start_time = None
         self._consecutive_403_errors = 0
         self._last_403_time = None
-        self._session_refresh_threshold = 300  # Refresh session after 5 minutes of 403 errors
+        self._session_refresh_threshold = SESSION_403_WINDOW_SECS
         self._init_scraper_session()
 
     def _init_scraper_session(self):
         """Initialize scraper session based on configuration."""
         if self.use_flaresolverr:
-            print("🔧 Using FlareSolverr session")
+            self.logger.info("🔧 Using FlareSolverr session")
             # FlareSolverr is handled in get_page_flaresolverr
             self.session = requests.Session() 
         else:
-            print("🔧 Using standard requests session")
+            self.logger.info("🔧 Using standard requests session")
             self.session = requests.Session()
             self._session_start_time = time.time()
 
@@ -63,7 +71,7 @@ class BaseScraper(ABC):
             return True
             
         # Refresh session every 30 minutes as preventive measure
-        if current_time - self._session_start_time > 1800:  # 30 minutes
+        if current_time - self._session_start_time > SESSION_MAX_AGE_SECS:
             return True
             
         return False
@@ -71,7 +79,7 @@ class BaseScraper(ABC):
     def _refresh_session(self):
         """Refresh the session."""
         if self.debug:
-            print("🔄 Refreshing session...")
+            self.logger.info("🔄 Refreshing session...")
             
         try:
             # Close existing session if it exists
@@ -86,10 +94,10 @@ class BaseScraper(ABC):
             self._last_403_time = None
             
             if self.debug:
-                print("✅ Session refreshed successfully")
+                self.logger.info("✅ Session refreshed successfully")
                 
         except Exception as e:
-            print(f"❌ Error refreshing session: {e}")
+            self.logger.error(f"❌ Error refreshing session: {e}")
 
     def get_page(self, url: str, **kwargs) -> Optional[requests.Response]:
         """
@@ -130,8 +138,8 @@ class BaseScraper(ABC):
                 self._last_403_time = time.time()
                 
                 if self.debug:
-                    print(f"🚫 HTTP 403 detected for {url}")
-                    print(f"   Consecutive 403 errors: {self._consecutive_403_errors}")
+                    self.logger.info(f"🚫 HTTP 403 detected for {url}")
+                    self.logger.info(f"   Consecutive 403 errors: {self._consecutive_403_errors}")
                 
                 # Try session refresh if we have multiple 403s
                 if self._consecutive_403_errors >= 2:
@@ -144,14 +152,14 @@ class BaseScraper(ABC):
                             return response
                     except Exception as retry_e:
                         if self.debug:
-                            print(f"   ⚠️ Retry after refresh failed: {retry_e}")
+                            self.logger.warning(f"   ⚠️ Retry after refresh failed: {retry_e}")
                 
                 return response
                 
             elif response.status_code == 429:
                 # Rate limiting
                 if self.debug:
-                    print(f"⚠️ HTTP 429 (Rate Limited) for {url}")
+                    self.logger.warning(f"⚠️ HTTP 429 (Rate Limited) for {url}")
                 return response
                 
             else:
@@ -161,14 +169,14 @@ class BaseScraper(ABC):
                 
         except Exception as e:
             if self.debug:
-                print(f"❌ Error fetching {url}: {e}")
+                self.logger.error(f"❌ Error fetching {url}: {e}")
             return None
 
     def _get_page_flaresolverr(self, url: str, **kwargs) -> Optional[requests.Response]:
         """Get a webpage using FlareSolverr."""
         flaresolverr_url = os.getenv("FLARESOLVERR_URL")
         if not flaresolverr_url:
-            print("❌ FLARESOLVERR_URL not set, cannot use FlareSolverr.")
+            self.logger.error("❌ FLARESOLVERR_URL not set, cannot use FlareSolverr.")
             return None
             
         payload = {
@@ -185,7 +193,7 @@ class BaseScraper(ABC):
             if data.get('status') == 'ok':
                 solution = data.get('solution', {})
                 if not solution:
-                    print(f"❌ FlareSolverr returned empty solution for URL: {url}")
+                    self.logger.error(f"❌ FlareSolverr returned empty solution for URL: {url}")
                     return None
                 
                 # Create a mock response object
@@ -195,7 +203,7 @@ class BaseScraper(ABC):
                 # Handle case where response content might be None
                 response_content = solution.get('response', '')
                 if response_content is None:
-                    print(f"⚠️ FlareSolverr returned None response content for URL: {url}")
+                    self.logger.warning(f"⚠️ FlareSolverr returned None response content for URL: {url}")
                     response_content = ''
                 mock_response._content = response_content.encode('utf-8')
                 
@@ -207,17 +215,17 @@ class BaseScraper(ABC):
                 return mock_response
             else:
                 error_msg = data.get('message', 'Unknown error')
-                print(f"❌ FlareSolverr error for URL {url}: {error_msg}")
+                self.logger.error(f"❌ FlareSolverr error for URL {url}: {error_msg}")
                 return None
                 
         except requests.exceptions.Timeout:
-            print(f"❌ FlareSolverr request timeout for URL: {url}")
+            self.logger.error(f"❌ FlareSolverr request timeout for URL: {url}")
             return None
         except requests.exceptions.RequestException as e:
-            print(f"❌ FlareSolverr request failed for URL {url}: {e}")
+            self.logger.error(f"❌ FlareSolverr request failed for URL {url}: {e}")
             return None
         except Exception as e:
-            print(f"❌ FlareSolverr unexpected error for URL {url}: {e}")
+            self.logger.error(f"❌ FlareSolverr unexpected error for URL {url}: {e}")
             return None
 
     def get_soup(self, html_content: str) -> Optional[BeautifulSoup]:
@@ -228,7 +236,7 @@ class BaseScraper(ABC):
             return BeautifulSoup(html_content, 'html.parser')
         except Exception as e:
             if self.debug:
-                print(f"   ❌ Error creating BeautifulSoup object: {e}")
+                self.logger.error(f"   ❌ Error creating BeautifulSoup object: {e}")
             return None
 
     def get_page_with_fallback(self, url: str, **kwargs) -> Optional[requests.Response]:
@@ -245,19 +253,19 @@ class BaseScraper(ABC):
         # Try FlareSolverr first if enabled
         if self.use_flaresolverr:
             if self.debug:
-                print(f"🌐 Trying FlareSolverr for: {url}")
+                self.logger.info(f"🌐 Trying FlareSolverr for: {url}")
             
             response = self._get_page_flaresolverr(url, **kwargs)
             if response and response.status_code == 200:
                 if self.debug:
-                    print(f"✅ FlareSolverr success for: {url}")
+                    self.logger.info(f"✅ FlareSolverr success for: {url}")
                 return response
             elif self.debug:
-                print(f"❌ FlareSolverr failed for: {url}")
+                self.logger.error(f"❌ FlareSolverr failed for: {url}")
         
         # Fallback to standard session
         if self.debug:
-            print(f"🔄 Falling back to standard session for: {url}")
+            self.logger.info(f"🔄 Falling back to standard session for: {url}")
         
         return self.get_page(url, **kwargs)
 

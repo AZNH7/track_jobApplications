@@ -40,6 +40,9 @@ services:
       - ../exports:/app/exports
       - ../imports:/app/imports
       - ../logs:/app/logs
+      # Mount config as a volume so it can be edited without rebuilding the image.
+      # The file is read-write so the Settings view can persist changes.
+      - ./job_tracker_config.json:/app/job_tracker_config.json
     depends_on:
       - postgres
       - redis

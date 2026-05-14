@@ -12,11 +12,6 @@ from datetime import datetime, timedelta
 import logging
 import json
 import hashlib
-import sys
-import os
-
-# Add the parent directory to the path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.database.database_manager import get_db_manager
 
@@ -189,7 +184,7 @@ class JobDetailsCache:
             try:
                 with self._processing_lock:
                     self._processing_urls.discard(job_url)
-            except:
+            except Exception:
                 pass
     
     def warm_cache_for_urls(self, urls: List[str]) -> Dict[str, bool]:
@@ -321,7 +316,7 @@ class JobDetailsCache:
             try:
                 with self._processing_lock:
                     self._processing_urls.discard(job_url)
-            except:
+            except Exception:
                 pass
     
     def _check_and_track_content_changes(self, job_url: str, new_details: Dict[str, Any]) -> None:
@@ -924,7 +919,7 @@ class JobDetailsCache:
             try:
                 with self._processing_lock:
                     self._processing_urls.discard(job_url)
-            except:
+            except Exception:
                 pass
 
 # Global cache instance with enhanced configuration for better 403 error handling

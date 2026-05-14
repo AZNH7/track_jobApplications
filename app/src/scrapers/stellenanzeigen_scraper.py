@@ -4,6 +4,7 @@ Stellenanzeigen.de Job Scraper
 Handles all Stellenanzeigen.de-specific job scraping functionality.
 """
 
+import logging
 import requests
 import time
 import random
@@ -89,7 +90,7 @@ class StellenanzeigenScraper(BaseScraper):
 
         try:
             for keyword in keyword_list:
-                print(f"\n--- Searching Stellenanzeigen.de for: '{keyword}' ---")
+                self.logger.info(f"\n--- Searching Stellenanzeigen.de for: '{keyword}' ---")
                 # Store current search location for fallback in parsing
                 self._current_search_location = location
                 
@@ -107,9 +108,9 @@ class StellenanzeigenScraper(BaseScraper):
                             params['locationIds'] = location_id
                             # Log remote search when using X-HO-100
                             if location_id == 'X-HO-100':
-                                print(f"   🏠 Searching for REMOTE jobs (locationId: {location_id})")
+                                self.logger.info(f"   🏠 Searching for REMOTE jobs (locationId: {location_id})")
                             else:
-                                print(f"   📍 Searching in location: {location} (locationId: {location_id})")
+                                self.logger.info(f"   📍 Searching in location: {location} (locationId: {location_id})")
                     
                     # Add pagination
                     if page > 1:
@@ -117,7 +118,7 @@ class StellenanzeigenScraper(BaseScraper):
                     
                     search_url = f"{self.base_url}/suche/?" + urlencode(params)
                     
-                    print(f"📄 Fetching Stellenanzeigen page {page} for '{keyword}'")
+                    self.logger.info(f"📄 Fetching Stellenanzeigen page {page} for '{keyword}'")
                     
                     headers = {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -138,21 +139,21 @@ class StellenanzeigenScraper(BaseScraper):
                             page_jobs = self._extract_stellenanzeigen_jobs(soup, search_url)
                     else:
                         status_code = response.status_code if response else 'N/A'
-                        print(f"   ❌ HTTP {status_code} for page {page}")
+                        self.logger.error(f"   ❌ HTTP {status_code} for page {page}")
 
                     if page_jobs:
                         all_jobs.extend(page_jobs)
-                        print(f"   Found {len(page_jobs)} jobs on page {page} for '{keyword}'")
+                        self.logger.info(f"   Found {len(page_jobs)} jobs on page {page} for '{keyword}'")
 
                     # Break if no jobs found (likely end of results)
                     if page > 1 and not page_jobs:
-                        print("   ℹ️ No more jobs found for this keyword")
+                        self.logger.info("   ℹ️ No more jobs found for this keyword")
                         break
                     
                     time.sleep(random.uniform(1, 3))
                 
         except Exception as e:
-            print(f"❌ Error during Stellenanzeigen search: {e}")
+            self.logger.error(f"❌ Error during Stellenanzeigen search: {e}")
         
         # Deduplicate results
         seen_urls = set()
@@ -165,9 +166,9 @@ class StellenanzeigenScraper(BaseScraper):
         # When English is not selected, use local LLM for language detection
         # The LLM will be used in the job processing pipeline to determine language
         if not english_only:
-            print(f"   🤖 Will use local LLM for language detection during job processing")
+            self.logger.info(f"   🤖 Will use local LLM for language detection during job processing")
         
-        print(f"\n🎯 Total unique Stellenanzeigen jobs found: {len(unique_jobs)}")
+        self.logger.info(f"\n🎯 Total unique Stellenanzeigen jobs found: {len(unique_jobs)}")
         return unique_jobs
 
     def _extract_stellenanzeigen_jobs(self, soup: BeautifulSoup, page_url: str) -> List[Dict]:
@@ -179,7 +180,7 @@ class StellenanzeigenScraper(BaseScraper):
             job_cards = []
             
             if self.debug:
-                print(f"   🔍 Starting job extraction from: {page_url}")
+                self.logger.info(f"   🔍 Starting job extraction from: {page_url}")
             
             # Try specific Stellenanzeigen.de selectors first
             patterns = [
@@ -192,7 +193,7 @@ class StellenanzeigenScraper(BaseScraper):
             for pattern in patterns:
                 cards = soup.find_all(pattern['tag'], class_=pattern['class'])
                 if self.debug:
-                    print(f"   🔍 Pattern {pattern} found {len(cards)} potential cards")
+                    self.logger.info(f"   🔍 Pattern {pattern} found {len(cards)} potential cards")
                 
                 if cards:
                     # Filter out invalid cards (navigation, buttons, etc.)
@@ -211,46 +212,46 @@ class StellenanzeigenScraper(BaseScraper):
                     if valid_cards:
                         job_cards = valid_cards
                         if self.debug:
-                            print(f"   🎯 Found {len(valid_cards)} valid job cards using pattern: {pattern}")
+                            self.logger.info(f"   🎯 Found {len(valid_cards)} valid job cards using pattern: {pattern}")
                         break
             
             # Fallback: look for any elements with job-related attributes or text
             if not job_cards:
                 if self.debug:
-                    print(f"   ⚠️ No job cards found with specific patterns, trying fallback")
+                    self.logger.warning(f"   ⚠️ No job cards found with specific patterns, trying fallback")
                 
                 all_elements = soup.find_all(['div', 'article', 'li'])
                 job_cards = [elem for elem in all_elements if elem.get_text() and any(keyword in elem.get_text().lower() for keyword in ['developer', 'engineer', 'administrator', 'manager', 'analyst'])]
                 if self.debug:
-                    print(f"   ⚠️ Using fallback extraction, found {len(job_cards)} potential job elements")
+                    self.logger.warning(f"   ⚠️ Using fallback extraction, found {len(job_cards)} potential job elements")
             
             if self.debug:
-                print(f"   📊 Total job cards to process: {len(job_cards)}")
+                self.logger.info(f"   📊 Total job cards to process: {len(job_cards)}")
             
             for i, card in enumerate(job_cards):
                 try:
                     if isinstance(card, Tag):
                         if self.debug:
-                            print(f"   🔍 Processing card {i+1}/{len(job_cards)}")
+                            self.logger.info(f"   🔍 Processing card {i+1}/{len(job_cards)}")
                         
                         job_data = self._parse_stellenanzeigen_job_card(card, page_url)
                         if job_data and job_data.get('title'):
                             jobs.append(job_data)
                             if self.debug:
-                                print(f"   ✅ Added job: {job_data.get('title', 'Unknown')}")
+                                self.logger.info(f"   ✅ Added job: {job_data.get('title', 'Unknown')}")
                         else:
                             if self.debug:
-                                print(f"   ❌ Skipped card {i+1}: No valid job data")
+                                self.logger.error(f"   ❌ Skipped card {i+1}: No valid job data")
                 except Exception as e:
                     if self.debug:
-                        print(f"   ⚠️ Error parsing Stellenanzeigen job card {i+1}: {e}")
+                        self.logger.warning(f"   ⚠️ Error parsing Stellenanzeigen job card {i+1}: {e}")
                     continue
                     
         except Exception as e:
-            print(f"❌ Error extracting Stellenanzeigen jobs: {e}")
+            self.logger.error(f"❌ Error extracting Stellenanzeigen jobs: {e}")
         
         if self.debug:
-            print(f"   🎯 Total jobs extracted: {len(jobs)}")
+            self.logger.info(f"   🎯 Total jobs extracted: {len(jobs)}")
         
         return jobs
 
@@ -446,12 +447,12 @@ class StellenanzeigenScraper(BaseScraper):
         
         # Debug logging
         if self.debug:
-            print(f"   🔍 Parsed job card:")
-            print(f"     - Title: {title}")
-            print(f"     - Company: {company}")
-            print(f"     - Location: {location}")
-            print(f"     - URL: {job_url}")
-            print(f"     - Description length: {len(description)}")
+            self.logger.info(f"   🔍 Parsed job card:")
+            self.logger.info(f"     - Title: {title}")
+            self.logger.info(f"     - Company: {company}")
+            self.logger.info(f"     - Location: {location}")
+            self.logger.info(f"     - URL: {job_url}")
+            self.logger.info(f"     - Description length: {len(description)}")
         
         return job_data
 
@@ -477,16 +478,16 @@ class StellenanzeigenScraper(BaseScraper):
                         retry_delay=cache_retry_delay
                     )
                     if cached_details:
-                        print(f"   📋 Using cached job details for: {job_url}")
+                        self.logger.info(f"   📋 Using cached job details for: {job_url}")
                         return cached_details
                     break  # Exit retry loop if we got a response (even if None)
                 except Exception as cache_error:
-                    print(f"   ⚠️ Cache retry {cache_attempt + 1}/{max_cache_retries} failed: {cache_error}")
+                    self.logger.warning(f"   ⚠️ Cache retry {cache_attempt + 1}/{max_cache_retries} failed: {cache_error}")
                     if cache_attempt < max_cache_retries - 1:
                         time.sleep(cache_retry_delay)
             
             # If not in cache, fetch fresh data
-            print(f"   🔄 Fetching fresh job details for: {job_url}")
+            self.logger.info(f"   🔄 Fetching fresh job details for: {job_url}")
             
             # Enhanced Stellenanzeigen-specific headers and timeout
             headers = {
@@ -518,21 +519,21 @@ class StellenanzeigenScraper(BaseScraper):
                         html_content = response.text
                         break
                     elif response and response.status_code in [403, 429, 500, 502, 503, 504]:
-                        print(f"   ⚠️ HTTP {response.status_code} for job details (attempt {request_attempt + 1}/{max_request_retries}): {job_url}")
+                        self.logger.warning(f"   ⚠️ HTTP {response.status_code} for job details (attempt {request_attempt + 1}/{max_request_retries}): {job_url}")
                         if request_attempt < max_request_retries - 1:
                             time.sleep(request_retry_delay * (request_attempt + 1))  # Exponential backoff
                             continue
                     else:
                         status_code = response.status_code if response else 'No response'
-                        print(f"   ❌ HTTP {status_code} for job details: {job_url}")
+                        self.logger.error(f"   ❌ HTTP {status_code} for job details: {job_url}")
                         break
                 except Exception as request_error:
-                    print(f"   ⚠️ Request attempt {request_attempt + 1}/{max_request_retries} failed: {request_error}")
+                    self.logger.warning(f"   ⚠️ Request attempt {request_attempt + 1}/{max_request_retries} failed: {request_error}")
                     if request_attempt < max_request_retries - 1:
                         time.sleep(request_retry_delay * (request_attempt + 1))
                         continue
                     else:
-                        print(f"   ❌ All request attempts failed for: {job_url}")
+                        self.logger.error(f"   ❌ All request attempts failed for: {job_url}")
             
             # Handle failed requests
             if not html_content:
@@ -559,10 +560,10 @@ class StellenanzeigenScraper(BaseScraper):
                 for save_attempt in range(max_save_retries):
                     try:
                         job_details_cache.cache_job_details(job_url, error_details, is_valid=False, error_message=f"HTTP {response.status_code if response else 'No response'} error")
-                        print(f"   💾 Cached error details for: {job_url}")
+                        self.logger.info(f"   💾 Cached error details for: {job_url}")
                         break
                     except Exception as save_error:
-                        print(f"   ⚠️ Cache save attempt {save_attempt + 1}/{max_save_retries} failed: {save_error}")
+                        self.logger.warning(f"   ⚠️ Cache save attempt {save_attempt + 1}/{max_save_retries} failed: {save_error}")
                         if save_attempt < max_save_retries - 1:
                             time.sleep(save_retry_delay)
                 
@@ -573,7 +574,7 @@ class StellenanzeigenScraper(BaseScraper):
             try:
                 soup = self.get_soup(html_content)
             except Exception as parse_error:
-                print(f"   ⚠️ HTML parsing error for: {job_url} - {parse_error}")
+                self.logger.warning(f"   ⚠️ HTML parsing error for: {job_url} - {parse_error}")
                 # Cache partial HTML for debugging
                 error_details = {
                     "title": "Error - HTML Parse Failed",
@@ -598,10 +599,10 @@ class StellenanzeigenScraper(BaseScraper):
                 for save_attempt in range(max_save_retries):
                     try:
                         job_details_cache.cache_job_details(job_url, error_details, is_valid=False, error_message=f"HTML parsing error: {parse_error}")
-                        print(f"   💾 Cached parsing error for: {job_url}")
+                        self.logger.info(f"   💾 Cached parsing error for: {job_url}")
                         break
                     except Exception as save_error:
-                        print(f"   ⚠️ Cache save attempt {save_attempt + 1}/{max_save_retries} failed: {save_error}")
+                        self.logger.warning(f"   ⚠️ Cache save attempt {save_attempt + 1}/{max_save_retries} failed: {save_error}")
                         if save_attempt < max_save_retries - 1:
                             time.sleep(save_retry_delay)
                 
@@ -705,13 +706,13 @@ class StellenanzeigenScraper(BaseScraper):
             
             # Content validation for Stellenanzeigen
             if not title or title == "Unknown Title":
-                print(f"   ⚠️ Warning: Could not extract title for: {job_url}")
+                self.logger.warning(f"   ⚠️ Warning: Could not extract title for: {job_url}")
             
             if not company or company == "Unknown Company":
-                print(f"   ⚠️ Warning: Could not extract company for: {job_url}")
+                self.logger.warning(f"   ⚠️ Warning: Could not extract company for: {job_url}")
             
             if not description or len(description.strip()) < 50:
-                print(f"   ⚠️ Warning: Description too short for: {job_url} ({len(description)} chars)")
+                self.logger.warning(f"   ⚠️ Warning: Description too short for: {job_url} ({len(description)} chars)")
             
             details = {
                 "title": title or "Unknown Title",
@@ -736,10 +737,10 @@ class StellenanzeigenScraper(BaseScraper):
             for save_attempt in range(max_save_retries):
                 try:
                     job_details_cache.cache_job_details(job_url, details)
-                    print(f"   💾 Successfully cached job details for: {job_url}")
+                    self.logger.info(f"   💾 Successfully cached job details for: {job_url}")
                     break
                 except Exception as save_error:
-                    print(f"   ⚠️ Cache save attempt {save_attempt + 1}/{max_save_retries} failed: {save_error}")
+                    self.logger.warning(f"   ⚠️ Cache save attempt {save_attempt + 1}/{max_save_retries} failed: {save_error}")
                     if save_attempt < max_save_retries - 1:
                         time.sleep(save_retry_delay)
             
@@ -747,7 +748,7 @@ class StellenanzeigenScraper(BaseScraper):
             
         except Exception as e:
             if self.debug:
-                print(f"   ⚠️ Error fetching Stellenanzeigen job details for {job_url}: {e}")
+                self.logger.warning(f"   ⚠️ Error fetching Stellenanzeigen job details for {job_url}: {e}")
             error_details = {
                 "title": "Error - Job Details Fetch",
                 "company": "Unknown",
@@ -771,10 +772,10 @@ class StellenanzeigenScraper(BaseScraper):
             for save_attempt in range(max_save_retries):
                 try:
                     job_details_cache.cache_job_details(job_url, error_details, is_valid=False, error_message=f"Error: {str(e)}")
-                    print(f"   💾 Cached error details for: {job_url}")
+                    self.logger.info(f"   💾 Cached error details for: {job_url}")
                     break
                 except Exception as save_error:
-                    print(f"   ⚠️ Cache save attempt {save_attempt + 1}/{max_save_retries} failed: {save_error}")
+                    self.logger.warning(f"   ⚠️ Cache save attempt {save_attempt + 1}/{max_save_retries} failed: {save_error}")
                     if save_attempt < max_save_retries - 1:
                         time.sleep(save_retry_delay)
             
@@ -848,7 +849,7 @@ class StellenanzeigenScraper(BaseScraper):
         
         except Exception as e:
             if self.debug:
-                print(f"   ⚠️ Error extracting location from URL {job_url}: {e}")
+                self.logger.warning(f"   ⚠️ Error extracting location from URL {job_url}: {e}")
         
         return ""
 

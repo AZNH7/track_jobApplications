@@ -4,6 +4,7 @@ Xing Job Scraper
 Handles all Xing-specific job scraping functionality.
 """
 
+import logging
 import requests
 import time
 import random
@@ -67,7 +68,7 @@ class XingScraper(BaseScraper):
 
         try:
             for keyword in keyword_list:
-                print(f"\n--- Searching Xing.com for: '{keyword}' ---")
+                self.logger.info(f"\n--- Searching Xing.com for: '{keyword}' ---")
                 # Store current search location for fallback in parsing
                 self._current_search_location = location
                 
@@ -82,7 +83,7 @@ class XingScraper(BaseScraper):
                     
                     search_url = f"{self.base_url}/jobs/search?" + urlencode(params)
                     
-                    print(f"📄 Fetching Xing page {page} for '{keyword}'")
+                    self.logger.info(f"📄 Fetching Xing page {page} for '{keyword}'")
                     
                     response = self.get_page(search_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'}, timeout=30)
 
@@ -93,21 +94,21 @@ class XingScraper(BaseScraper):
                             page_jobs = self._extract_xing_jobs(soup, search_url)
                     else:
                         status_code = response.status_code if response else 'N/A'
-                        print(f"   ❌ HTTP {status_code} for page {page}")
+                        self.logger.error(f"   ❌ HTTP {status_code} for page {page}")
 
                     if page_jobs:
                         all_jobs.extend(page_jobs)
-                        print(f"   Found {len(page_jobs)} jobs on page {page} for '{keyword}'")
+                        self.logger.info(f"   Found {len(page_jobs)} jobs on page {page} for '{keyword}'")
 
                     # Break if no jobs found (likely end of results)
                     if page > 1 and not page_jobs:
-                        print("   ℹ️ No more jobs found for this keyword")
+                        self.logger.info("   ℹ️ No more jobs found for this keyword")
                         break
                     
                     time.sleep(random.uniform(1, 3))
                 
         except Exception as e:
-            print(f"❌ Error during Xing search: {e}")
+            self.logger.error(f"❌ Error during Xing search: {e}")
         
         # Deduplicate results
         seen_urls = set()
@@ -120,9 +121,9 @@ class XingScraper(BaseScraper):
         # When English is not selected, use local LLM for language detection
         # The LLM will be used in the job processing pipeline to determine language
         if not english_only:
-            print(f"   🤖 Will use local LLM for language detection during job processing")
+            self.logger.info(f"   🤖 Will use local LLM for language detection during job processing")
         
-        print(f"\n🎯 Total unique Xing jobs found: {len(unique_jobs)}")
+        self.logger.info(f"\n🎯 Total unique Xing jobs found: {len(unique_jobs)}")
         return unique_jobs
 
     def _extract_xing_jobs(self, soup: BeautifulSoup, page_url: str) -> List[Dict]:
@@ -134,13 +135,13 @@ class XingScraper(BaseScraper):
             job_cards = soup.find_all('article', {'data-testid': 'job-search-result'})
             
             if self.debug:
-                print(f"   🎯 Found {len(job_cards)} job article elements")
+                self.logger.info(f"   🎯 Found {len(job_cards)} job article elements")
             
             if not job_cards:
                 # Fallback: look for other article elements
                 job_cards = soup.find_all('article')
                 if self.debug:
-                    print(f"   🔄 Fallback: Found {len(job_cards)} article elements")
+                    self.logger.info(f"   🔄 Fallback: Found {len(job_cards)} article elements")
             
             for card in job_cards:
                 try:
@@ -149,16 +150,16 @@ class XingScraper(BaseScraper):
                         if job_data and job_data.get('title') and job_data.get('url'):
                             jobs.append(job_data)
                             if self.debug:
-                                print(f"   ✅ Added job: {job_data.get('title')[:50]}...")
+                                self.logger.info(f"   ✅ Added job: {job_data.get('title')[:50]}...")
                         elif self.debug and job_data.get('title'):
-                            print(f"   ❌ Skipped job (no URL): {job_data.get('title')[:50]}...")
+                            self.logger.error(f"   ❌ Skipped job (no URL): {job_data.get('title')[:50]}...")
                 except Exception as e:
                     if self.debug:
-                        print(f"   ⚠️ Error parsing Xing job card: {e}")
+                        self.logger.warning(f"   ⚠️ Error parsing Xing job card: {e}")
                     continue
                     
         except Exception as e:
-            print(f"❌ Error extracting Xing jobs: {e}")
+            self.logger.error(f"❌ Error extracting Xing jobs: {e}")
         
         return jobs
 
@@ -229,16 +230,16 @@ class XingScraper(BaseScraper):
                         retry_delay=cache_retry_delay
                     )
                     if cached_details:
-                        print(f"   📋 Using cached job details for: {job_url}")
+                        self.logger.info(f"   📋 Using cached job details for: {job_url}")
                         return cached_details
                     break  # Exit retry loop if we got a response (even if None)
                 except Exception as cache_error:
-                    print(f"   ⚠️ Cache retry {cache_attempt + 1}/{max_cache_retries} failed: {cache_error}")
+                    self.logger.warning(f"   ⚠️ Cache retry {cache_attempt + 1}/{max_cache_retries} failed: {cache_error}")
                     if cache_attempt < max_cache_retries - 1:
                         time.sleep(cache_retry_delay)
             
             # If not in cache, fetch fresh data
-            print(f"   🔄 Fetching fresh job details for: {job_url}")
+            self.logger.info(f"   🔄 Fetching fresh job details for: {job_url}")
             
             # Enhanced Xing-specific headers and timeout
             headers = {
@@ -264,20 +265,20 @@ class XingScraper(BaseScraper):
                         html_content = response.text
                         break
                     elif response and response.status_code in [403, 429, 500, 502, 503, 504]:
-                        print(f"   ⚠️ HTTP {response.status_code} for job details (attempt {request_attempt + 1}/{max_request_retries}): {job_url}")
+                        self.logger.warning(f"   ⚠️ HTTP {response.status_code} for job details (attempt {request_attempt + 1}/{max_request_retries}): {job_url}")
                         if request_attempt < max_request_retries - 1:
                             time.sleep(request_retry_delay * (request_attempt + 1))  # Exponential backoff
                             continue
                     else:
-                        print(f"   ❌ HTTP {response.status_code if response else 'No response'} for job details: {job_url}")
+                        self.logger.error(f"   ❌ HTTP {response.status_code if response else 'No response'} for job details: {job_url}")
                         break
                 except Exception as request_error:
-                    print(f"   ⚠️ Request attempt {request_attempt + 1}/{max_request_retries} failed: {request_error}")
+                    self.logger.warning(f"   ⚠️ Request attempt {request_attempt + 1}/{max_request_retries} failed: {request_error}")
                     if request_attempt < max_request_retries - 1:
                         time.sleep(request_retry_delay * (request_attempt + 1))
                         continue
                     else:
-                        print(f"   ❌ All request attempts failed for: {job_url}")
+                        self.logger.error(f"   ❌ All request attempts failed for: {job_url}")
             
             # Handle failed requests
             if not response or response.status_code != 200:
@@ -322,7 +323,7 @@ class XingScraper(BaseScraper):
             try:
                 soup = BeautifulSoup(html_content, 'html.parser')
             except Exception as parse_error:
-                print(f"   ⚠️ HTML parsing error for {job_url}: {parse_error}")
+                self.logger.warning(f"   ⚠️ HTML parsing error for {job_url}: {parse_error}")
                 error_details = {
                     "title": "Error - HTML Parsing",
                     "company": "Unknown",
@@ -395,7 +396,7 @@ class XingScraper(BaseScraper):
                 description = self._extract_comprehensive_description(soup)
                 
             except Exception as extraction_error:
-                print(f"   ⚠️ Content extraction error for {job_url}: {extraction_error}")
+                self.logger.warning(f"   ⚠️ Content extraction error for {job_url}: {extraction_error}")
                 # Continue with basic extraction as fallback
                 title = title or "Unknown Title"
                 company = company or "Unknown Company"
@@ -428,25 +429,25 @@ class XingScraper(BaseScraper):
                 try:
                     cache_success = job_details_cache.cache_job_details(job_url, details)
                     if cache_success:
-                        print(f"   ✅ Successfully cached Xing job details for: {job_url}")
+                        self.logger.info(f"   ✅ Successfully cached Xing job details for: {job_url}")
                         break
                     else:
-                        print(f"   ⚠️ Cache save attempt {cache_save_attempt + 1}/{max_cache_save_retries} failed for: {job_url}")
+                        self.logger.warning(f"   ⚠️ Cache save attempt {cache_save_attempt + 1}/{max_cache_save_retries} failed for: {job_url}")
                         if cache_save_attempt < max_cache_save_retries - 1:
                             time.sleep(cache_save_retry_delay)
                 except Exception as cache_save_error:
-                    print(f"   ⚠️ Cache save error (attempt {cache_save_attempt + 1}/{max_cache_save_retries}): {cache_save_error}")
+                    self.logger.warning(f"   ⚠️ Cache save error (attempt {cache_save_attempt + 1}/{max_cache_save_retries}): {cache_save_error}")
                     if cache_save_attempt < max_cache_save_retries - 1:
                         time.sleep(cache_save_retry_delay)
             
             if not cache_success:
-                print(f"   ⚠️ Failed to cache job details after {max_cache_save_retries} attempts for: {job_url}")
+                self.logger.warning(f"   ⚠️ Failed to cache job details after {max_cache_save_retries} attempts for: {job_url}")
             
             return details
             
         except Exception as e:
             if self.debug:
-                print(f"   ⚠️ Error fetching Xing job details for {job_url}: {e}")
+                self.logger.warning(f"   ⚠️ Error fetching Xing job details for {job_url}: {e}")
             error_details = {
                 "title": "Error - Job Details Fetch",
                 "company": "Unknown",
@@ -467,7 +468,7 @@ class XingScraper(BaseScraper):
             try:
                 job_details_cache.cache_job_details(job_url, error_details, is_valid=False, error_message=f"Error: {str(e)}")
             except Exception as cache_error:
-                print(f"   ⚠️ Failed to cache error details: {cache_error}")
+                self.logger.warning(f"   ⚠️ Failed to cache error details: {cache_error}")
             
             return error_details
 

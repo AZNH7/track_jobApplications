@@ -18,6 +18,11 @@ import pdfplumber
 from pathlib import Path
 from utils.thread_manager import ThreadContextManager
 
+try:
+    from constants import LLM_BATCH_WORKERS, PROCESSOR_BATCH_WORKERS
+except ImportError:
+    LLM_BATCH_WORKERS, PROCESSOR_BATCH_WORKERS = 4, 3
+
 class EnhancedJobProcessor:
     """
     Comprehensive job processor that automatically analyzes all jobs with:
@@ -40,7 +45,7 @@ class EnhancedJobProcessor:
         self.available = False
         
         # Thread management
-        self.executor = ThreadPoolExecutor(max_workers=4)
+        self.executor = ThreadPoolExecutor(max_workers=LLM_BATCH_WORKERS)
         self.processing_lock = threading.Lock()
         
         # Stats tracking
@@ -539,7 +544,7 @@ class EnhancedJobProcessor:
         self.logger.info(f"Starting comprehensive analysis of {len(jobs_list)} jobs...")
         
         # Process jobs in parallel batches
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        with ThreadPoolExecutor(max_workers=PROCESSOR_BATCH_WORKERS) as executor:
             future_to_job = {
                 executor.submit(self._analyze_with_context, self._safe_analyze_job, job): job 
                 for job in jobs_list

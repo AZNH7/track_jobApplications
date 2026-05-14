@@ -4,6 +4,7 @@ Job Scraper Orchestrator
 Main class that coordinates all job scrapers and provides the unified interface.
 """
 
+import logging
 import pandas as pd
 import time
 import random
@@ -58,6 +59,7 @@ class JobScraperOrchestrator:
             use_flaresolverr: Enable FlareSolverr for bypassing bot detection
         """
         self.debug = debug
+        self.logger = logging.getLogger(__name__)
         self.config = config or self._load_default_config()
         self.use_flaresolverr = use_flaresolverr
         
@@ -71,20 +73,20 @@ class JobScraperOrchestrator:
             from src.ollama_client import ollama_client
             self.ollama_client = ollama_client
             if self.ollama_client.available:
-                print(f"🤖 LLM Assessment: Enabled (Ollama available)")
+                self.logger.info(f"🤖 LLM Assessment: Enabled (Ollama available)")
             else:
-                print(f"⚠️ LLM Assessment: Disabled (Ollama not available)")
+                self.logger.warning(f"⚠️ LLM Assessment: Disabled (Ollama not available)")
         except Exception as e:
-            print(f"⚠️ LLM Assessment: Disabled (Error initializing Ollama: {e})")
+            self.logger.warning(f"⚠️ LLM Assessment: Disabled (Error initializing Ollama: {e})")
             self.ollama_client = None
         
         # Store current search keywords for LLM assessment
         self.current_search_keywords = []
         self.searched_location = ""  # Track the searched location for filtering
         
-        print(f"🚀 Job Scraper Orchestrator initialized with {len(self.scrapers)} platforms")
+        self.logger.info(f"🚀 Job Scraper Orchestrator initialized with {len(self.scrapers)} platforms")
         for scraper_name in self.scrapers.keys():
-            print(f"   ✅ {scraper_name}")
+            self.logger.info(f"   ✅ {scraper_name}")
     
     def _load_default_config(self) -> Dict:
         """Load default configuration."""
@@ -167,60 +169,65 @@ class JobScraperOrchestrator:
             DataFrame with all found jobs
         """
         all_jobs = []
-        
+
         # Ensure keywords is a list
         if isinstance(keywords, str):
             keywords = [keywords]
-        
+
         # Store current search keywords for LLM assessment
         self.current_search_keywords = keywords
-        
+
         # Set relevance threshold from config if available
         self.relevance_threshold = getattr(self, 'relevance_threshold', 5)
-        
-        print(f"🔍 Starting comprehensive job search...")
-        print(f"   📝 Keywords: {keywords}")
-        print(f"   📍 Location: {location or 'anywhere'}")
-        print(f"   📄 Max pages per platform: {max_pages}")
-        print(f"   🌐 Platforms: {len(self.scrapers)}")
-        
+
+        self.logger.info(f"🔍 Starting comprehensive job search...")
+        self.logger.info(f"   📝 Keywords: {keywords}")
+        self.logger.info(f"   📍 Location: {location or 'anywhere'}")
+        self.logger.info(f"   📄 Max pages per platform: {max_pages}")
+        self.logger.info(f"   🌐 Platforms: {len(self.scrapers)}")
+
+        failed_platforms: set = set()
+        total_attempts = 0
+
         # Search each platform for each job title individually
         for job_title in keywords:
-            print(f"\n🔍 Searching for job title: {job_title}")
-            
+            self.logger.info(f"\n🔍 Searching for job title: {job_title}")
+
             # Search each platform
             for platform_name, scraper in self.scrapers.items():
+                total_attempts += 1
                 try:
-                    print(f"   🔍 Searching {platform_name}...")
+                    self.logger.info(f"   🔍 Searching {platform_name}...")
                     start_time = time.time()
-                    
-                    # Search with individual job title
+
                     jobs = scraper.search_jobs(
                         keywords=job_title,
                         location=location,
                         max_pages=max_pages,
                         english_only=english_only
                     )
-                    
-                    # Add platform and search metadata
+
                     for job in jobs:
                         job['search_platform'] = platform_name
                         job['search_title'] = job_title
-                    
-                    # Extend all jobs list
+
                     all_jobs.extend(jobs)
-                    
-                    # Log search results
-                    print(f"   ✅ Found {len(jobs)} jobs on {platform_name}")
-                    print(f"   ⏱️ Search time: {time.time() - start_time:.2f} seconds")
-                    
+                    self.logger.info(f"   ✅ Found {len(jobs)} jobs on {platform_name}")
+                    self.logger.info(f"   ⏱️ Search time: {time.time() - start_time:.2f} seconds")
+
                 except Exception as e:
-                    print(f"   ❌ Error searching {platform_name}: {e}")
+                    self.logger.error(f"   ❌ Error searching {platform_name}: {e}")
+                    failed_platforms.add(platform_name)
                     continue
-        
+
         # Convert to DataFrame
         if not all_jobs:
-            print("⚠️ No jobs found across all platforms.")
+            if failed_platforms and len(failed_platforms) >= len(self.scrapers):
+                self.logger.error(f"❌ All {len(self.scrapers)} platforms failed with errors. Check scraper connectivity and FlareSolverr status.")
+            elif failed_platforms:
+                self.logger.warning(f"⚠️ No jobs found. {len(failed_platforms)} platform(s) errored: {', '.join(sorted(failed_platforms))}")
+            else:
+                self.logger.warning("⚠️ No jobs found across all platforms (all scrapers ran without errors).")
             return pd.DataFrame()
         
         # Create DataFrame
@@ -228,7 +235,7 @@ class JobScraperOrchestrator:
         
         # Optional deep scraping
         if deep_scrape:
-            print("\n🔍 Starting deep job details scraping...")
+            self.logger.info("\n🔍 Starting deep job details scraping...")
             df = self._process_jobs_dataframe(df, keywords)
         
         return df
@@ -258,16 +265,16 @@ class JobScraperOrchestrator:
         
         all_jobs = []
         
-        print(f"🔍 Starting targeted job search...")
-        print(f"   📝 Keywords: {keywords}")
-        print(f"   📍 Location: {location or 'anywhere'}")
-        print(f"   📄 Max pages per platform: {max_pages}")
-        print(f"   🎯 Selected platforms: {', '.join(selected_platforms)}")
-        print(f"   🔍 English only: {english_only}")
-        print(f"   🔍 Deep scrape: {deep_scrape}")
+        self.logger.info(f"🔍 Starting targeted job search...")
+        self.logger.info(f"   📝 Keywords: {keywords}")
+        self.logger.info(f"   📍 Location: {location or 'anywhere'}")
+        self.logger.info(f"   📄 Max pages per platform: {max_pages}")
+        self.logger.info(f"   🎯 Selected platforms: {', '.join(selected_platforms)}")
+        self.logger.info(f"   🔍 English only: {english_only}")
+        self.logger.info(f"   🔍 Deep scrape: {deep_scrape}")
 
-        print(f"   🔍 Scrapers: {self.scrapers}")
-        print(f"   🔍 Job found: {all_jobs}")
+        self.logger.info(f"   🔍 Scrapers: {self.scrapers}")
+        self.logger.info(f"   🔍 Job found: {all_jobs}")
         
         # Search selected platforms
         for platform_name in selected_platforms:
@@ -279,12 +286,12 @@ class JobScraperOrchestrator:
                     break
             
             if scraper_key is None:
-                print(f"⚠️ Platform '{platform_name}' not available")
+                self.logger.warning(f"⚠️ Platform '{platform_name}' not available")
                 continue
             
             try:
                 scraper = self.scrapers[scraper_key]
-                print(f"\n🔍 Searching {scraper_key}...")
+                self.logger.info(f"\n🔍 Searching {scraper_key}...")
                 start_time = time.time()
                 
                 platform_jobs = []
@@ -294,7 +301,7 @@ class JobScraperOrchestrator:
                 
                 # Search title by title for better results
                 for i, keyword in enumerate(keywords_list):
-                    print(f"   📝 Searching for: '{keyword}' ({i+1}/{len(keywords_list)})")
+                    self.logger.info(f"   📝 Searching for: '{keyword}' ({i+1}/{len(keywords_list)})")
                     
                     # Calculate pages per keyword to stay within max_pages limit
                     pages_per_keyword = max(1, max_pages // len(keywords_list))
@@ -312,14 +319,14 @@ class JobScraperOrchestrator:
                         job['platform'] = scraper_key.lower()  # Use lowercase for consistency
                     
                     platform_jobs.extend(keyword_jobs)
-                    print(f"   ✅ Found {len(keyword_jobs)} jobs for '{keyword}'")
+                    self.logger.info(f"   ✅ Found {len(keyword_jobs)} jobs for '{keyword}'")
                     
                     # Add small delay between keywords to be respectful
                     if i < len(keywords_list) - 1:  # Don't delay after the last keyword
                         time.sleep(random.uniform(0.5, 1.5))
                 
                 elapsed_time = time.time() - start_time
-                print(f"✅ {scraper_key}: {len(platform_jobs)} total jobs found in {elapsed_time:.1f}s")
+                self.logger.info(f"✅ {scraper_key}: {len(platform_jobs)} total jobs found in {elapsed_time:.1f}s")
                 
                 all_jobs.extend(platform_jobs)
                 
@@ -331,10 +338,10 @@ class JobScraperOrchestrator:
                 time.sleep(delay)
                 
             except Exception as e:
-                print(f"❌ Error searching {scraper_key}: {e}")
+                self.logger.error(f"❌ Error searching {scraper_key}: {e}")
                 continue
         
-        print(f"\n🎯 Total jobs found: {len(all_jobs)}")
+        self.logger.info(f"\n🎯 Total jobs found: {len(all_jobs)}")
         
         # Convert to DataFrame and process
         if all_jobs:
@@ -342,28 +349,28 @@ class JobScraperOrchestrator:
             df = self._process_jobs_dataframe(df, keywords)
             
             # Debug: Search completion summary
-            print(f"\n🎉 Targeted job search completed successfully!")
-            print(f"   📊 Total jobs processed: {len(df)}")
-            print(f"   📝 Search keywords: {keywords}")
-            print(f"   📍 Search location: {location or 'anywhere'}")
-            print(f"   🎯 Selected platforms: {', '.join(selected_platforms)}")
-            print(f"   📄 Pages per platform: {max_pages}")
-            print(f"   🔍 Deep scrape enabled: {deep_scrape}")
-            print(f"   🌍 English only: {english_only}")
+            self.logger.info(f"\n🎉 Targeted job search completed successfully!")
+            self.logger.info(f"   📊 Total jobs processed: {len(df)}")
+            self.logger.info(f"   📝 Search keywords: {keywords}")
+            self.logger.info(f"   📍 Search location: {location or 'anywhere'}")
+            self.logger.info(f"   🎯 Selected platforms: {', '.join(selected_platforms)}")
+            self.logger.info(f"   📄 Pages per platform: {max_pages}")
+            self.logger.info(f"   🔍 Deep scrape enabled: {deep_scrape}")
+            self.logger.info(f"   🌍 English only: {english_only}")
             
             # Platform breakdown
             if 'platform' in df.columns:
                 platform_counts = df['platform'].value_counts()
-                print(f"   📈 Jobs by platform:")
+                self.logger.info(f"   📈 Jobs by platform:")
                 for platform, count in platform_counts.items():
-                    print(f"      - {platform}: {count} jobs")
+                    self.logger.info(f"      - {platform}: {count} jobs")
             
             return df
         else:
-            print(f"\n⚠️ Targeted job search completed - no jobs found")
-            print(f"   📝 Search keywords: {keywords}")
-            print(f"   📍 Search location: {location or 'anywhere'}")
-            print(f"   🎯 Selected platforms: {', '.join(selected_platforms)}")
+            self.logger.warning(f"\n⚠️ Targeted job search completed - no jobs found")
+            self.logger.info(f"   📝 Search keywords: {keywords}")
+            self.logger.info(f"   📍 Search location: {location or 'anywhere'}")
+            self.logger.info(f"   🎯 Selected platforms: {', '.join(selected_platforms)}")
             return pd.DataFrame()
     
     def search_parallel(self, keywords: Union[str, List[str]], location: str = "", 
@@ -393,12 +400,12 @@ class JobScraperOrchestrator:
         
         all_jobs = []
         
-        print(f"🔍 Starting parallel job search...")
-        print(f"   📝 Keywords: {keywords}")
-        print(f"   📍 Location: {location or 'anywhere'}")
-        print(f"   📄 Max pages per platform: {max_pages}")
-        print(f"   🎯 Selected platforms: {', '.join(selected_platforms)}")
-        print(f"   ⚡ Parallel workers: {max_workers}")
+        self.logger.info(f"🔍 Starting parallel job search...")
+        self.logger.info(f"   📝 Keywords: {keywords}")
+        self.logger.info(f"   📍 Location: {location or 'anywhere'}")
+        self.logger.info(f"   📄 Max pages per platform: {max_pages}")
+        self.logger.info(f"   🎯 Selected platforms: {', '.join(selected_platforms)}")
+        self.logger.info(f"   ⚡ Parallel workers: {max_workers}")
         
         def search_platform(platform_name: str) -> List[Dict]:
             """Search a single platform."""
@@ -409,11 +416,11 @@ class JobScraperOrchestrator:
                     break
             
             if not scraper_key:
-                print(f"⚠️ Platform '{platform_name}' not available")
+                self.logger.warning(f"⚠️ Platform '{platform_name}' not available")
                 return []
 
             try:
-                print(f"\n🔍 Searching {scraper_key}...")
+                self.logger.info(f"\n🔍 Searching {scraper_key}...")
                 start_time = time.time()
                 
                 platform_jobs = []
@@ -423,7 +430,7 @@ class JobScraperOrchestrator:
                 
                 # Search title by title for better results
                 for i, keyword in enumerate(keywords_list):
-                    print(f"   📝 Searching for: '{keyword}' ({i+1}/{len(keywords_list)})")
+                    self.logger.info(f"   📝 Searching for: '{keyword}' ({i+1}/{len(keywords_list)})")
                     
                     # Calculate pages per keyword to stay within max_pages limit
                     pages_per_keyword = max(1, max_pages // len(keywords_list))
@@ -441,14 +448,14 @@ class JobScraperOrchestrator:
                         job['platform'] = scraper_key
                     
                     platform_jobs.extend(keyword_jobs)
-                    print(f"   ✅ Found {len(keyword_jobs)} jobs for '{keyword}'")
+                    self.logger.info(f"   ✅ Found {len(keyword_jobs)} jobs for '{keyword}'")
                     
                     # Add small delay between keywords to be respectful
                     if i < len(keywords_list) - 1:  # Don't delay after the last keyword
                         time.sleep(random.uniform(0.5, 1.5))
                 
                 elapsed_time = time.time() - start_time
-                print(f"✅ {scraper_key}: {len(platform_jobs)} total jobs found in {elapsed_time:.1f}s")
+                self.logger.info(f"✅ {scraper_key}: {len(platform_jobs)} total jobs found in {elapsed_time:.1f}s")
                 
                 if deep_scrape:
                     self._fetch_details_for_jobs(platform_jobs, self.scrapers[scraper_key])
@@ -456,33 +463,42 @@ class JobScraperOrchestrator:
                 return platform_jobs
                 
             except Exception as e:
-                print(f"❌ Error searching {scraper_key}: {e}")
+                self.logger.error(f"❌ Error searching {scraper_key}: {e}")
                 return []
         
+        failed_platforms: list = []
+
         # Execute searches in parallel
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_platform = {
-                executor.submit(search_platform, platform): platform 
+                executor.submit(search_platform, platform): platform
                 for platform in selected_platforms
             }
-            
+
             for future in as_completed(future_to_platform):
                 platform = future_to_platform[future]
                 try:
                     jobs = future.result()
                     all_jobs.extend(jobs)
                 except Exception as e:
-                    print(f"❌ Platform {platform} generated an exception: {e}")
-        
-        print(f"\n🎯 Total jobs found: {len(all_jobs)}")
-        
-        # Convert to DataFrame and process
-        if all_jobs:
-            df = pd.DataFrame(all_jobs)
-            df = self._process_jobs_dataframe(df, keywords)
-            return df
-        else:
+                    self.logger.error(f"❌ Platform {platform} generated an exception: {e}")
+                    failed_platforms.append(platform)
+
+        self.logger.info(f"\n🎯 Total jobs found: {len(all_jobs)}")
+
+        if not all_jobs:
+            if len(failed_platforms) >= len(selected_platforms):
+                self.logger.error(f"❌ All {len(selected_platforms)} platforms failed with errors. Check scraper connectivity and FlareSolverr status.")
+            elif failed_platforms:
+                self.logger.warning(f"⚠️ No jobs found. {len(failed_platforms)} platform(s) errored: {', '.join(sorted(failed_platforms))}")
+            else:
+                self.logger.warning("⚠️ No jobs found across all platforms (all scrapers ran without errors).")
             return pd.DataFrame()
+
+        # Convert to DataFrame and process
+        df = pd.DataFrame(all_jobs)
+        df = self._process_jobs_dataframe(df, keywords)
+        return df
     
     def search_optimized(self, keywords: Union[str, List[str]], location: str = "", 
                         max_pages: int = 2, selected_platforms: Optional[List[str]] = None,
@@ -511,13 +527,13 @@ class JobScraperOrchestrator:
         # Store current search keywords for LLM assessment
         self.current_search_keywords = keywords if isinstance(keywords, list) else [keywords]
         
-        print(f"🚀 Starting optimized parallel job search...")
-        print(f"   📝 Keywords: {keywords}")
-        print(f"   📍 Location: {location or 'anywhere'}")
-        print(f"   📄 Max pages per platform: {max_pages}")
-        print(f"   🎯 Selected platforms: {', '.join(selected_platforms)}")
-        print(f"   ⚡ Parallel workers: {max_workers}")
-        print(f"   🔍 Deep scrape: {deep_scrape}")
+        self.logger.info(f"🚀 Starting optimized parallel job search...")
+        self.logger.info(f"   📝 Keywords: {keywords}")
+        self.logger.info(f"   📍 Location: {location or 'anywhere'}")
+        self.logger.info(f"   📄 Max pages per platform: {max_pages}")
+        self.logger.info(f"   🎯 Selected platforms: {', '.join(selected_platforms)}")
+        self.logger.info(f"   ⚡ Parallel workers: {max_workers}")
+        self.logger.info(f"   🔍 Deep scrape: {deep_scrape}")
         
         def search_platform_optimized(platform_name: str) -> List[Dict]:
             """Search a single platform with optimized approach."""
@@ -528,11 +544,11 @@ class JobScraperOrchestrator:
                     break
             
             if not scraper_key:
-                print(f"⚠️ Platform '{platform_name}' not available")
+                self.logger.warning(f"⚠️ Platform '{platform_name}' not available")
                 return []
 
             try:
-                print(f"🔍 Searching {scraper_key}...")
+                self.logger.info(f"🔍 Searching {scraper_key}...")
                 start_time = time.time()
                 
                 platform_jobs = []
@@ -558,65 +574,75 @@ class JobScraperOrchestrator:
                 platform_jobs.extend(keyword_jobs)
                 
                 elapsed_time = time.time() - start_time
-                print(f"✅ {scraper_key}: {len(platform_jobs)} jobs found in {elapsed_time:.1f}s")
+                self.logger.info(f"✅ {scraper_key}: {len(platform_jobs)} jobs found in {elapsed_time:.1f}s")
                 
                 return platform_jobs
                 
             except Exception as e:
-                print(f"❌ Error searching {scraper_key}: {e}")
+                self.logger.error(f"❌ Error searching {scraper_key}: {e}")
                 return []
         
         # Execute searches in parallel with optimized worker count
         all_jobs = []
+        failed_platforms: list = []
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_platform = {
-                executor.submit(search_platform_optimized, platform): platform 
+                executor.submit(search_platform_optimized, platform): platform
                 for platform in selected_platforms
             }
-            
+
             for future in as_completed(future_to_platform):
                 platform = future_to_platform[future]
                 try:
                     jobs = future.result()
                     all_jobs.extend(jobs)
+                    # Checkpoint: persist this platform's results immediately so partial
+                    # progress is never lost if the overall search fails later.
+                    if jobs:
+                        self._save_jobs_checkpoint(jobs)
                 except Exception as e:
-                    print(f"❌ Platform {platform} generated an exception: {e}")
-        
-        print(f"\n🎯 Total jobs found: {len(all_jobs)}")
-        
-        # Convert to DataFrame
-        if all_jobs:
-            df = pd.DataFrame(all_jobs)
-            
-            # Only do basic processing, skip deep scraping during search
-            df = self._process_jobs_dataframe_basic(df, keywords)
-            
-            return df
-        else:
+                    self.logger.error(f"❌ Platform {platform} generated an exception: {e}")
+                    failed_platforms.append(platform)
+
+        self.logger.info(f"\n🎯 Total jobs found: {len(all_jobs)}")
+
+        if not all_jobs:
+            if len(failed_platforms) >= len(selected_platforms):
+                self.logger.error(f"❌ All {len(selected_platforms)} platforms failed with errors.")
+            elif failed_platforms:
+                self.logger.warning(f"⚠️ No jobs found. {len(failed_platforms)} platform(s) errored: {', '.join(sorted(failed_platforms))}")
+            else:
+                self.logger.warning("⚠️ No jobs found across all platforms.")
             return pd.DataFrame()
+
+        # Convert to DataFrame
+        df = pd.DataFrame(all_jobs)
+        # Only do basic processing, skip deep scraping during search
+        df = self._process_jobs_dataframe_basic(df, keywords)
+        return df
     
     def _fetch_details_for_jobs(self, jobs: List[Dict], scraper: BaseScraper):
         """Fetch detailed descriptions for a list of jobs."""
-        print(f"  -> Starting deep scrape for {len(jobs)} jobs...")
+        self.logger.info(f"  -> Starting deep scrape for {len(jobs)} jobs...")
         
         # Skip deep scraping for StepStone jobs since they often get blocked
         if scraper.get_platform_name() == "StepStone":
-            print(f"    - Skipping deep scrape for StepStone (job detail pages often blocked)")
+            self.logger.info(f"    - Skipping deep scrape for StepStone (job detail pages often blocked)")
             return
         
         for i, job in enumerate(jobs):
             if 'url' in job and job['url']:
                 # Skip internal network URLs that can't be accessed
                 if 'internal.tjgprod.io' in job['url'] or 'searchcore.internal' in job['url']:
-                    print(f"    - Skipping job {i+1} due to internal URL: {job['url']}")
+                    self.logger.info(f"    - Skipping job {i+1} due to internal URL: {job['url']}")
                     continue
                 
                 # Skip fallback URLs that point to search pages (not individual job pages)
                 if job['url'] and 'jobs?' in job['url'] and 'q=' in job['url']:
-                    print(f"    - Skipping job {i+1} due to search page URL: {job['url']}")
+                    self.logger.info(f"    - Skipping job {i+1} due to search page URL: {job['url']}")
                     continue
                 
-                print(f"    - Scraping details for job {i+1}/{len(jobs)}...")
+                self.logger.info(f"    - Scraping details for job {i+1}/{len(jobs)}...")
                 try:
                     # Add timeout protection for deep scraping using threading
                     import threading
@@ -641,12 +667,12 @@ class JobScraperOrchestrator:
                     fetch_thread.join(timeout=30)
                     
                     if fetch_thread.is_alive():
-                        print(f"    - ⏰ Timeout scraping details for job {i+1} ({job.get('title', 'Unknown')})")
+                        self.logger.info(f"    - ⏰ Timeout scraping details for job {i+1} ({job.get('title', 'Unknown')})")
                     else:
                         # Check for errors first
                         try:
                             error = error_queue.get_nowait()
-                            print(f"    - Error scraping details for {job.get('title')}: {error}")
+                            self.logger.info(f"    - Error scraping details for {job.get('title')}: {error}")
                         except queue.Empty:
                             # No error, check for result
                             try:
@@ -654,13 +680,13 @@ class JobScraperOrchestrator:
                                 if details and 'description' in details:
                                     job['description'] = details['description']
                             except queue.Empty:
-                                print(f"    - No result received for job {i+1}")
+                                self.logger.info(f"    - No result received for job {i+1}")
                     
                     time.sleep(random.uniform(1, 2))  # Respectful delay
                 except Exception as e:
-                    print(f"    - Error scraping details for {job.get('title')}: {e}")
+                    self.logger.info(f"    - Error scraping details for {job.get('title')}: {e}")
             else:
-                print(f"    - Skipping job {i+1} due to missing URL.")
+                self.logger.info(f"    - Skipping job {i+1} due to missing URL.")
 
     def _process_jobs_dataframe(self, df: pd.DataFrame, keywords: Union[str, List[str]]) -> pd.DataFrame:
         """Process the combined jobs DataFrame."""
@@ -731,7 +757,7 @@ class JobScraperOrchestrator:
         if jobs_df.empty:
             return jobs_df
         
-        print(f"🔍 Starting async deep scraping for {len(jobs_df)} jobs...")
+        self.logger.info(f"🔍 Starting async deep scraping for {len(jobs_df)} jobs...")
         
         # Import cache service
         from ..services.job_details_cache import job_details_cache
@@ -742,11 +768,11 @@ class JobScraperOrchestrator:
         # Get cache stats before starting
         cache_stats = job_details_cache.get_cache_stats()
         processing_status = job_details_cache.get_processing_status()
-        print(f"   📊 Cache stats before scraping: {cache_stats.get('cache_hits', 0)} hits, {cache_stats.get('cache_misses', 0)} misses")
-        print(f"   🔍 Cache service ID: {id(job_details_cache)}")
-        print(f"   📊 Cache service available: {hasattr(job_details_cache, 'db_manager')}")
-        print(f"   🔄 URLs currently being processed: {processing_status.get('processing_count', 0)}")
-        print(f"   💾 Memory cache size: {processing_status.get('memory_cache_size', 0)}")
+        self.logger.info(f"   📊 Cache stats before scraping: {cache_stats.get('cache_hits', 0)} hits, {cache_stats.get('cache_misses', 0)} misses")
+        self.logger.info(f"   🔍 Cache service ID: {id(job_details_cache)}")
+        self.logger.info(f"   📊 Cache service available: {hasattr(job_details_cache, 'db_manager')}")
+        self.logger.info(f"   🔄 URLs currently being processed: {processing_status.get('processing_count', 0)}")
+        self.logger.info(f"   💾 Memory cache size: {processing_status.get('memory_cache_size', 0)}")
         
         jobs_list = jobs_df.to_dict('records')
         
@@ -767,10 +793,10 @@ class JobScraperOrchestrator:
                     duplicate_count += 1
         
         if duplicate_count > 0:
-            print(f"   🔄 Found {duplicate_count} duplicate URLs, processing unique URLs only")
+            self.logger.info(f"   🔄 Found {duplicate_count} duplicate URLs, processing unique URLs only")
         
         jobs_list = list(unique_jobs.values())
-        print(f"   📊 Processing {len(jobs_list)} unique jobs (down from {len(jobs_df)} total)")
+        self.logger.info(f"   📊 Processing {len(jobs_list)} unique jobs (down from {len(jobs_df)} total)")
         
         # Pre-check cache for all URLs to avoid unnecessary processing
         cached_urls = set()
@@ -785,15 +811,15 @@ class JobScraperOrchestrator:
                     cached_urls.add(url)
                     # Update job with cached details
                     job.update(cached_details)
-                    print(f"   📋 Using cached details for: {job.get('title', 'Unknown')}")
+                    self.logger.info(f"   📋 Using cached details for: {job.get('title', 'Unknown')}")
                 else:
                     uncached_jobs.append(job)
         
-        print(f"   📊 Found {len(cached_urls)} jobs already cached, {len(uncached_jobs)} need processing")
+        self.logger.info(f"   📊 Found {len(cached_urls)} jobs already cached, {len(uncached_jobs)} need processing")
         
         # Only process jobs that aren't cached
         if not uncached_jobs:
-            print("   ✅ All jobs already cached, no processing needed")
+            self.logger.info("   ✅ All jobs already cached, no processing needed")
             return jobs_df
         
         processed_jobs = []
@@ -821,17 +847,17 @@ class JobScraperOrchestrator:
                     
                     try:
                         # Fetch detailed description (cache is checked internally)
-                        print(f"   🔄 Fetching details for: {job.get('title', 'Unknown')}")
+                        self.logger.info(f"   🔄 Fetching details for: {job.get('title', 'Unknown')}")
                         details = scraper.fetch_job_details(job['url'])
                         if details:
                             job.update(details)
                     except Exception as e:
-                        print(f"⚠️ Error fetching details for {job.get('title', 'Unknown')}: {e}")
+                        self.logger.warning(f"⚠️ Error fetching details for {job.get('title', 'Unknown')}: {e}")
                 
                 return job
                 
             except Exception as e:
-                print(f"❌ Error processing job {job.get('title', 'Unknown')}: {e}")
+                self.logger.error(f"❌ Error processing job {job.get('title', 'Unknown')}: {e}")
                 return job
         
         # Process uncached jobs in parallel
@@ -847,16 +873,16 @@ class JobScraperOrchestrator:
                     processed_jobs.append(processed_job)
                 except Exception as e:
                     original_job = future_to_job[future]
-                    print(f"❌ Error processing job {original_job.get('title', 'Unknown')}: {e}")
+                    self.logger.error(f"❌ Error processing job {original_job.get('title', 'Unknown')}: {e}")
                     processed_jobs.append(original_job)
         
         # Get cache stats after completion
         final_cache_stats = job_details_cache.get_cache_stats()
         final_processing_status = job_details_cache.get_processing_status()
-        print(f"   📊 Cache stats after scraping: {final_cache_stats.get('cache_hits', 0)} hits, {final_cache_stats.get('cache_misses', 0)} misses")
-        print(f"   📈 Cache hit rate: {final_cache_stats.get('hit_rate', 0):.1%}")
-        print(f"   🔄 URLs still being processed: {final_processing_status.get('processing_count', 0)}")
-        print(f"   💾 Final memory cache size: {final_processing_status.get('memory_cache_size', 0)}")
+        self.logger.info(f"   📊 Cache stats after scraping: {final_cache_stats.get('cache_hits', 0)} hits, {final_cache_stats.get('cache_misses', 0)} misses")
+        self.logger.info(f"   📈 Cache hit rate: {final_cache_stats.get('hit_rate', 0):.1%}")
+        self.logger.info(f"   🔄 URLs still being processed: {final_processing_status.get('processing_count', 0)}")
+        self.logger.info(f"   💾 Final memory cache size: {final_processing_status.get('memory_cache_size', 0)}")
         
         # Combine processed jobs with already cached jobs
         all_processed_jobs = []
@@ -871,7 +897,7 @@ class JobScraperOrchestrator:
         
         # Merge processed results back with original jobs that had duplicate URLs
         if duplicate_count > 0:
-            print(f"   🔄 Merging processed details back to {len(jobs_df)} original jobs...")
+            self.logger.info(f"   🔄 Merging processed details back to {len(jobs_df)} original jobs...")
             
             # Create a mapping of URL to processed details
             url_to_processed = {}
@@ -890,34 +916,71 @@ class JobScraperOrchestrator:
                     job.update(processed_details)
                 final_jobs.append(job)
             
-            print(f"   ✅ Merged details for {len(final_jobs)} jobs")
+            self.logger.info(f"   ✅ Merged details for {len(final_jobs)} jobs")
             
             # Re-detect language for jobs that now have full descriptions
-            print(f"   🌍 Re-detecting language for jobs with full descriptions...")
+            self.logger.info(f"   🌍 Re-detecting language for jobs with full descriptions...")
             final_jobs = self._redetect_language_for_full_descriptions(final_jobs)
             
             return pd.DataFrame(final_jobs)
         else:
-            print(f"✅ Deep scraping completed for {len(all_processed_jobs)} jobs")
+            self.logger.info(f"✅ Deep scraping completed for {len(all_processed_jobs)} jobs")
             
             # Re-detect language for jobs that now have full descriptions
-            print(f"   🌍 Re-detecting language for jobs with full descriptions...")
+            self.logger.info(f"   🌍 Re-detecting language for jobs with full descriptions...")
             all_processed_jobs = self._redetect_language_for_full_descriptions(all_processed_jobs)
             
             return pd.DataFrame(all_processed_jobs)
     
 
     
+    def _save_jobs_checkpoint(self, jobs: List[Dict]) -> None:
+        """Persist a single platform's results to the DB immediately.
+
+        Called inside the as_completed loop so partial results survive if the
+        overall search raises an exception before the final save_to_database call.
+        Failures here are logged as warnings and never bubble up to the caller.
+        """
+        try:
+            db_manager = get_db_manager()
+            if not db_manager:
+                return
+            processed = [
+                {
+                    'title': j.get('title', ''),
+                    'company': j.get('company', ''),
+                    'location': j.get('location', ''),
+                    'salary': j.get('salary', ''),
+                    'url': j.get('url', ''),
+                    'source': j.get('platform', j.get('source', '')),
+                    'scraped_date': datetime.now(),
+                    'posted_date': j.get('posted_date', ''),
+                    'description': j.get('description', ''),
+                    'language': j.get('language', ''),
+                    'job_snippet': j.get('job_snippet', ''),
+                    'llm_filtered': j.get('llm_filtered', False),
+                    'llm_quality_score': j.get('llm_quality_score', 0),
+                    'llm_relevance_score': j.get('llm_relevance_score', 0),
+                    'llm_reasoning': j.get('llm_reasoning', ''),
+                }
+                for j in jobs
+            ]
+            saved = db_manager.batch_insert_jobs(processed)
+            platform = jobs[0].get('platform', jobs[0].get('source', 'unknown')) if jobs else 'unknown'
+            self.logger.info(f"💾 Checkpoint: {saved}/{len(processed)} jobs from {platform} saved to DB")
+        except Exception as e:
+            self.logger.warning(f"⚠️ Checkpoint save failed (results still in memory): {e}")
+
     def save_to_database(self, df: pd.DataFrame, db_path: Optional[str] = None):
         """Save jobs to database."""
         if df.empty:
-            print("⚠️ No jobs to save to database")
+            self.logger.warning("⚠️ No jobs to save to database")
             return
         
         try:
             db_manager = get_db_manager()
             if not db_manager:
-                print("⚠️ Database manager not available")
+                self.logger.warning("⚠️ Database manager not available")
                 return
             
             # Convert DataFrame to list of dictionaries
@@ -951,17 +1014,17 @@ class JobScraperOrchestrator:
             # Use database manager's batch insert method
             if processed_jobs:
                 saved_count = db_manager.batch_insert_jobs(processed_jobs)
-                print(f"💾 Saved {saved_count} new jobs to database")
+                self.logger.info(f"💾 Saved {saved_count} new jobs to database")
                 
                 # Ensure filtered jobs are properly separated from ignored jobs
                 cleaned_count = db_manager.cleanup_filtered_jobs_from_ignored()
                 if cleaned_count > 0:
-                    print(f"🧹 Cleaned up {cleaned_count} filtered jobs from ignored list to maintain proper separation")
+                    self.logger.info(f"🧹 Cleaned up {cleaned_count} filtered jobs from ignored list to maintain proper separation")
             else:
-                print("⚠️ No valid jobs to save after filtering")
+                self.logger.warning("⚠️ No valid jobs to save after filtering")
             
         except Exception as e:
-            print(f"❌ Error saving to database: {e}")
+            self.logger.error(f"❌ Error saving to database: {e}")
     
     def _apply_pre_save_safeguards(self, jobs_data: List[Dict], db_manager) -> List[Dict]:
         """Apply LLM-powered safeguards and duplicate detection before saving."""
@@ -973,50 +1036,50 @@ class JobScraperOrchestrator:
             
             # Get existing jobs from database for duplicate checking
             existing_jobs = self._get_existing_jobs_for_duplicate_check(db_manager)
-            print(f"🔍 Checking against {len(existing_jobs)} existing jobs in database for duplicates")
+            self.logger.info(f"🔍 Checking against {len(existing_jobs)} existing jobs in database for duplicates")
             
             for job in jobs_data:
                 # Debug logging for each job
-                print(f"🔬 Job Pre-Save Analysis: {job.get('title', 'Unknown')} at {job.get('company', 'Unknown')}")
-                print(f"   🌐 URL: {job.get('url', 'N/A')}")
-                print(f"   📊 Initial Validation:")
-                print(f"     - Title Present: {bool(job.get('title'))}")
-                print(f"     - Company Present: {bool(job.get('company'))}")
-                print(f"     - URL Present: {bool(job.get('url'))}")
+                self.logger.info(f"🔬 Job Pre-Save Analysis: {job.get('title', 'Unknown')} at {job.get('company', 'Unknown')}")
+                self.logger.info(f"   🌐 URL: {job.get('url', 'N/A')}")
+                self.logger.info(f"   📊 Initial Validation:")
+                self.logger.info(f"     - Title Present: {bool(job.get('title'))}")
+                self.logger.info(f"     - Company Present: {bool(job.get('company'))}")
+                self.logger.info(f"     - URL Present: {bool(job.get('url'))}")
                 
                 # Validate required fields first - make more lenient to allow jobs without company
                 if not job.get('title') or not job.get('url'):
-                    print("   ❌ Job skipped: Missing required fields (title or URL)")
+                    self.logger.error("   ❌ Job skipped: Missing required fields (title or URL)")
                     continue
                 
                 # Company is preferred but not required for now
                 if not job.get('company'):
-                    print("   ⚠️ Job missing company information - will proceed anyway")
+                    self.logger.warning("   ⚠️ Job missing company information - will proceed anyway")
                     # Set a placeholder company name to avoid database issues
                     job['company'] = 'Company Not Specified'
                 
                 # Check for URL duplicates in database first (fastest check)
                 if self._is_url_duplicate_in_db(job, db_manager):
                     db_duplicate_count += 1
-                    print(f"   🚫 URL Duplicate in Database: {job.get('title')} at {job.get('company')}")
+                    self.logger.info(f"   🚫 URL Duplicate in Database: {job.get('title')} at {job.get('company')}")
                     continue
                 
                 # Check for exact duplicates by title and company
                 if self._is_exact_duplicate_in_db(job, db_manager):
                     db_duplicate_count += 1
-                    print(f"   🚫 Exact Duplicate in Database: {job.get('title')} at {job.get('company')}")
+                    self.logger.info(f"   🚫 Exact Duplicate in Database: {job.get('title')} at {job.get('company')}")
                     continue
                 
                 # Check for description-based duplicates
                 if self._is_description_duplicate_in_db(job, db_manager):
                     db_duplicate_count += 1
-                    print(f"   🚫 Description Duplicate in Database: {job.get('title')} at {job.get('company')}")
+                    self.logger.info(f"   🚫 Description Duplicate in Database: {job.get('title')} at {job.get('company')}")
                     continue
                 
                 # Check for semantic duplicates against existing database jobs
                 if self._is_semantic_duplicate_in_db(job, existing_jobs):
                     db_duplicate_count += 1
-                    print(f"   🚫 Semantic Duplicate in Database: {job.get('title')} at {job.get('company')}")
+                    self.logger.info(f"   🚫 Semantic Duplicate in Database: {job.get('title')} at {job.get('company')}")
                     continue
                 
                 # Check for semantic duplicates within the current batch
@@ -1025,7 +1088,7 @@ class JobScraperOrchestrator:
                     if self._is_semantic_duplicate(job, validated_job):
                         is_duplicate = True
                         duplicate_count += 1
-                        print(f"   🚫 Semantic Duplicate in Batch: {job.get('title')} at {job.get('company')}")
+                        self.logger.info(f"   🚫 Semantic Duplicate in Batch: {job.get('title')} at {job.get('company')}")
                         break
                 
                 if is_duplicate:
@@ -1054,10 +1117,10 @@ class JobScraperOrchestrator:
                                           searched_location == job_location)
                         
                         if is_indeed_job:
-                            print(f"   ✅ Skipping location filter for Indeed job: {job.get('title')} at {job.get('location', 'Unknown')}")
+                            self.logger.info(f"   ✅ Skipping location filter for Indeed job: {job.get('title')} at {job.get('location', 'Unknown')}")
                             # Indeed jobs are already location-filtered by the search, so keep them
                         elif location_matches and searched_location:
-                            print(f"   ✅ Location matches searched location ({searched_location}): {job.get('title')} at {job.get('location', 'Unknown')}")
+                            self.logger.info(f"   ✅ Location matches searched location ({searched_location}): {job.get('title')} at {job.get('location', 'Unknown')}")
                             # Job location matches searched location, so keep it
                         else:
                             # Convert single job to list for JobFilters
@@ -1075,16 +1138,16 @@ class JobScraperOrchestrator:
                             )
                             
                             if not filtered_jobs:
-                                print(f"   🚫 Location Filtered (50km from {self.searched_location if hasattr(self, 'searched_location') else 'Essen'}): {job.get('title')} at {job.get('location', 'Unknown')}")
+                                self.logger.info(f"   🚫 Location Filtered (50km from {self.searched_location if hasattr(self, 'searched_location') else 'Essen'}): {job.get('title')} at {job.get('location', 'Unknown')}")
                                 continue
                             
                             # Update job with filtered version
                             job = filtered_jobs[0]
                     except Exception as e:
-                        print(f"   ⚠️ Location filtering error: {e}")
+                        self.logger.warning(f"   ⚠️ Location filtering error: {e}")
                         # Continue with original job if filtering fails
                 else:
-                    print(f"   ✅ Location filtering disabled - keeping job: {job.get('title')} at {job.get('location', 'Unknown')}")
+                    self.logger.info(f"   ✅ Location filtering disabled - keeping job: {job.get('title')} at {job.get('location', 'Unknown')}")
                 
                 # Use LLM to make filtering decision
                 llm_assessment = self._llm_job_assessment(job)
@@ -1097,12 +1160,12 @@ class JobScraperOrchestrator:
                 job['llm_reasoning'] = llm_assessment.get('reasoning', '')
                 
                 # Debug logging for LLM assessment
-                print(f"   🤖 LLM Assessment:")
-                print(f"     - Quality Score: {job['llm_quality_score']}/10")
-                print(f"     - Relevance Score: {job['llm_relevance_score']}/10")
-                print(f"     - Filtering Threshold: {getattr(self, 'relevance_threshold', 5)}")
-                print(f"     - Filtered: {job['llm_filtered']}")
-                print(f"     - Reasoning: {job['llm_reasoning']}")
+                self.logger.info(f"   🤖 LLM Assessment:")
+                self.logger.info(f"     - Quality Score: {job['llm_quality_score']}/10")
+                self.logger.info(f"     - Relevance Score: {job['llm_relevance_score']}/10")
+                self.logger.info(f"     - Filtering Threshold: {getattr(self, 'relevance_threshold', 5)}")
+                self.logger.info(f"     - Filtered: {job['llm_filtered']}")
+                self.logger.info(f"     - Reasoning: {job['llm_reasoning']}")
                 
                 # Add language detection and job snippet
                 # Always attempt language detection using available content
@@ -1119,25 +1182,25 @@ class JobScraperOrchestrator:
                 if has_full_description:
                     # Use LLM for full descriptions
                     job['language'] = self._llm_detect_language(description)
-                    print(f"   🌍 Language detected: {job['language']} (full description: {len(description)} chars)")
+                    self.logger.info(f"   🌍 Language detected: {job['language']} (full description: {len(description)} chars)")
                 elif is_linkedin_job and has_minimal_description:
                     # For LinkedIn jobs with minimal description, use LinkedIn-specific detection
                     job['language'] = self._detect_linkedin_language(description, job_title)
-                    print(f"   🌍 LinkedIn language detected: {job['language']} (minimal description: {len(description)} chars)")
+                    self.logger.info(f"   🌍 LinkedIn language detected: {job['language']} (minimal description: {len(description)} chars)")
                 elif has_title:
                     # Prioritize title-based detection when description is insufficient
                     if has_minimal_description:
                         # Use combined title + description for better accuracy
                         combined_text = f"{job_title} {description}".strip()
                         job['language'] = self._fallback_language_detection(combined_text)
-                        print(f"   🌍 Title + description language detected: {job['language']} (combined: {len(combined_text)} chars)")
+                        self.logger.info(f"   🌍 Title + description language detected: {job['language']} (combined: {len(combined_text)} chars)")
                     else:
                         # Use title-only detection when description is too short
                         job['language'] = self._fallback_language_detection(job_title)
-                        print(f"   🌍 Title-only language detected: {job['language']} (title: {len(job_title)} chars)")
+                        self.logger.info(f"   🌍 Title-only language detected: {job['language']} (title: {len(job_title)} chars)")
                 else:
                     job['language'] = 'unknown'
-                    print(f"   ⚠️ No content for language detection - title: {len(job_title)} chars, description: {len(description)} chars")
+                    self.logger.warning(f"   ⚠️ No content for language detection - title: {len(job_title)} chars, description: {len(description)} chars")
                 
                 job['job_snippet'] = llm_assessment.get('job_snippet', '')
                 
@@ -1156,19 +1219,19 @@ class JobScraperOrchestrator:
                 if should_keep:
                     validated_jobs.append(job)
                     if not has_description:
-                        print(f"   ⚠️ Saved job without description: {job.get('title', 'Unknown')} - Relevance: {job['llm_relevance_score']}/10")
+                        self.logger.warning(f"   ⚠️ Saved job without description: {job.get('title', 'Unknown')} - Relevance: {job['llm_relevance_score']}/10")
                 else:
-                    print(f"   🚫 Filtered out: {job.get('title', 'Unknown')} - Relevance: {job['llm_relevance_score']}/10")
+                    self.logger.info(f"   🚫 Filtered out: {job.get('title', 'Unknown')} - Relevance: {job['llm_relevance_score']}/10")
             
             if duplicate_count > 0:
-                print(f"🧬 Removed {duplicate_count} semantic duplicates from this batch.")
+                self.logger.info(f"🧬 Removed {duplicate_count} semantic duplicates from this batch.")
             if db_duplicate_count > 0:
-                print(f"🗄️ Removed {db_duplicate_count} duplicates already in database.")
+                self.logger.info(f"🗄️ Removed {db_duplicate_count} duplicates already in database.")
             
             return validated_jobs
             
         except Exception as e:
-            print(f"⚠️ Error in LLM safeguards, falling back to basic validation: {e}")
+            self.logger.warning(f"⚠️ Error in LLM safeguards, falling back to basic validation: {e}")
             # Fallback to basic validation - more lenient
             validated_jobs = []
             for job in jobs_data:
@@ -1206,11 +1269,11 @@ class JobScraperOrchestrator:
                     'relevance_score': row[6] if row[6] else 0
                 })
             
-            print(f"📊 Loaded {len(existing_jobs)} existing jobs for duplicate checking")
+            self.logger.info(f"📊 Loaded {len(existing_jobs)} existing jobs for duplicate checking")
             return existing_jobs
             
         except Exception as e:
-            print(f"⚠️ Error fetching existing jobs for duplicate check: {e}")
+            self.logger.warning(f"⚠️ Error fetching existing jobs for duplicate check: {e}")
             return []
 
     def _is_url_duplicate_in_db(self, job: Dict, db_manager) -> bool:
@@ -1224,7 +1287,7 @@ class JobScraperOrchestrator:
             return result is not None
             
         except Exception as e:
-            print(f"⚠️ Error checking URL duplicate: {e}")
+            self.logger.warning(f"⚠️ Error checking URL duplicate: {e}")
             return False
 
     def _is_exact_duplicate_in_db(self, job: Dict, db_manager) -> bool:
@@ -1247,9 +1310,9 @@ class JobScraperOrchestrator:
                 results = db_manager.execute_query(query, (job['title'],), fetch='all')
                 
                 if results:
-                    print(f"   🚫 Exact duplicate found (title only): '{job.get('title')}'")
+                    self.logger.info(f"   🚫 Exact duplicate found (title only): '{job.get('title')}'")
                     for result in results:
-                        print(f"      - Existing ID: {result[0]}, URL: {result[1]}, Date: {result[2]}")
+                        self.logger.info(f"      - Existing ID: {result[0]}, URL: {result[1]}, Date: {result[2]}")
                     return True
                 
                 return False
@@ -1267,15 +1330,15 @@ class JobScraperOrchestrator:
             results = db_manager.execute_query(query, (job['title'], job['company']), fetch='all')
             
             if results:
-                print(f"   🚫 Exact duplicate found: '{job.get('title')}' at {job.get('company')}")
+                self.logger.info(f"   🚫 Exact duplicate found: '{job.get('title')}' at {job.get('company')}")
                 for result in results:
-                    print(f"      - Existing ID: {result[0]}, URL: {result[1]}, Date: {result[2]}")
+                    self.logger.info(f"      - Existing ID: {result[0]}, URL: {result[1]}, Date: {result[2]}")
                 return True
             
             return False
             
         except Exception as e:
-            print(f"⚠️ Error checking exact duplicate: {e}")
+            self.logger.warning(f"⚠️ Error checking exact duplicate: {e}")
             return False
 
     def _is_semantic_duplicate_in_db(self, job: Dict, existing_jobs: List[Dict]) -> bool:
@@ -1297,7 +1360,7 @@ class JobScraperOrchestrator:
                 
                 # Simple similarity check first (faster than LLM)
                 if self._are_titles_similar(job_title, existing_title):
-                    print(f"   🔍 Potential duplicate detected: '{job_title}' vs '{existing_title}' at {job_company}")
+                    self.logger.info(f"   🔍 Potential duplicate detected: '{job_title}' vs '{existing_title}' at {job_company}")
                     
                     # Use LLM for final confirmation if available
                     if hasattr(self, 'ollama_client') and self.ollama_client and self.ollama_client.available:
@@ -1309,7 +1372,7 @@ class JobScraperOrchestrator:
             return False
             
         except Exception as e:
-            print(f"⚠️ Error in semantic duplicate check: {e}")
+            self.logger.warning(f"⚠️ Error in semantic duplicate check: {e}")
             return False
 
     def _is_description_duplicate_in_db(self, job: Dict, db_manager) -> bool:
@@ -1342,13 +1405,13 @@ class JobScraperOrchestrator:
                     # Calculate description similarity
                     similarity = self._calculate_description_similarity(job_desc, existing_desc.lower())
                     if similarity > 0.85:  # 85% similarity threshold
-                        print(f"   🚫 Description duplicate found: '{job.get('title')}' at {job.get('company')} (similarity: {similarity:.2f})")
+                        self.logger.info(f"   🚫 Description duplicate found: '{job.get('title')}' at {job.get('company')} (similarity: {similarity:.2f})")
                         return True
             
             return False
             
         except Exception as e:
-            print(f"⚠️ Error checking description duplicate: {e}")
+            self.logger.warning(f"⚠️ Error checking description duplicate: {e}")
             return False
 
     def _calculate_description_similarity(self, desc1: str, desc2: str) -> float:
@@ -1384,7 +1447,7 @@ class JobScraperOrchestrator:
             return intersection / union
             
         except Exception as e:
-            print(f"⚠️ Error calculating description similarity: {e}")
+            self.logger.warning(f"⚠️ Error calculating description similarity: {e}")
             return 0.0
 
     def _are_titles_similar(self, title1: str, title2: str) -> bool:
@@ -1462,7 +1525,7 @@ class JobScraperOrchestrator:
             return False
             
         except Exception as e:
-            print(f"⚠️ Error in title similarity check: {e}")
+            self.logger.warning(f"⚠️ Error in title similarity check: {e}")
             return False
 
     def _is_semantic_duplicate(self, job1: Dict, job2: Dict) -> bool:
@@ -1516,7 +1579,7 @@ class JobScraperOrchestrator:
             
             return False
         except Exception as e:
-            print(f"⚠️ LLM duplicate check error: {e}")
+            self.logger.warning(f"⚠️ LLM duplicate check error: {e}")
             # Fallback to simple title match on error
             return (job1.get('title', '') or '').lower() == (job2.get('title', '') or '').lower()
 
@@ -1595,18 +1658,18 @@ class JobScraperOrchestrator:
                         if match:
                             return match.group(1).lower()
                     except Exception as regex_error:
-                        print(f"⚠️ Regex language detection error: {regex_error}")
+                        self.logger.warning(f"⚠️ Regex language detection error: {regex_error}")
                         pass
 
             # If LLM fails, use fallback detection
             if hasattr(self, 'debug') and self.debug:
-                print(f"   🔄 Using fallback language detection for text: {text[:100] if text else 'None'}...")
+                self.logger.info(f"   🔄 Using fallback language detection for text: {text[:100] if text else 'None'}...")
             return self._fallback_language_detection(text)
             
         except Exception as e:
-            print(f"⚠️ LLM language detection error: {e}")
+            self.logger.warning(f"⚠️ LLM language detection error: {e}")
             if hasattr(self, 'debug') and self.debug:
-                print(f"   📍 Error occurred in _llm_detect_language for text: {text[:100] if text else 'None'}...")
+                self.logger.info(f"   📍 Error occurred in _llm_detect_language for text: {text[:100] if text else 'None'}...")
             return self._fallback_language_detection(text)
 
     def _fallback_language_detection(self, text: str) -> str:
@@ -1675,7 +1738,7 @@ class JobScraperOrchestrator:
         try:
             if not hasattr(self, 'ollama_client') or not self.ollama_client or not self.ollama_client.available:
                 if hasattr(self, 'debug') and self.debug:
-                    print(f"   🔄 LLM not available, using fallback assessment for: {job.get('title', 'Unknown')}")
+                    self.logger.info(f"   🔄 LLM not available, using fallback assessment for: {job.get('title', 'Unknown')}")
                 return self._fallback_assessment(job)
             
             # Periodic health check - test connection every 10 jobs
@@ -1685,12 +1748,12 @@ class JobScraperOrchestrator:
             self._llm_call_count += 1
             if self._llm_call_count % 10 == 0:
                 if not self.ollama_client.test_connection():
-                    print(f"   ⚠️ LLM connection lost, attempting to reconnect...")
+                    self.logger.warning(f"   ⚠️ LLM connection lost, attempting to reconnect...")
                     # Try to reconnect
                     if self.ollama_client.test_connection():
-                        print(f"   ✅ LLM reconnected successfully")
+                        self.logger.info(f"   ✅ LLM reconnected successfully")
                     else:
-                        print(f"   ❌ LLM reconnection failed, using fallback")
+                        self.logger.error(f"   ❌ LLM reconnection failed, using fallback")
                         return self._fallback_assessment(job)
             
             # Prepare job data for LLM analysis
@@ -1855,7 +1918,7 @@ class JobScraperOrchestrator:
             )
             
             if not response:
-                print(f"   ⚠️ LLM returned None for job: {job.get('title', 'Unknown')} - using fallback")
+                self.logger.warning(f"   ⚠️ LLM returned None for job: {job.get('title', 'Unknown')} - using fallback")
                 return self._fallback_assessment(job)
             
             if response:
@@ -1877,21 +1940,21 @@ class JobScraperOrchestrator:
                             assessment = json.loads(json_match.group())
                             if all(key in assessment for key in ['should_filter', 'quality_score', 'relevance_score']):
                                 return assessment
-                    except:
+                    except (json.JSONDecodeError, ValueError):
                         pass
-            
+
             # If LLM fails, use fallback
             return self._fallback_assessment(job)
             
         except Exception as e:
-            print(f"⚠️ LLM assessment error for {job.get('title', 'Unknown')}: {e}")
+            self.logger.warning(f"⚠️ LLM assessment error for {job.get('title', 'Unknown')}: {e}")
             if hasattr(self, 'debug') and self.debug:
-                print(f"   📍 Error occurred in _llm_job_assessment")
-                print(f"   🔍 Job title: {job.get('title', 'N/A')}")
-                print(f"   🔍 Company: {job.get('company', 'N/A')}")
-                print(f"   🔍 Location: {job.get('location', 'N/A')}")
-                print(f"   🔍 Has description: {bool((job.get('description', '') or '').strip())}")
-                print(f"   🔍 Description length: {len(job.get('description', '') or '')}")
+                self.logger.info(f"   📍 Error occurred in _llm_job_assessment")
+                self.logger.info(f"   🔍 Job title: {job.get('title', 'N/A')}")
+                self.logger.info(f"   🔍 Company: {job.get('company', 'N/A')}")
+                self.logger.info(f"   🔍 Location: {job.get('location', 'N/A')}")
+                self.logger.info(f"   🔍 Has description: {bool((job.get('description', '') or '').strip())}")
+                self.logger.info(f"   🔍 Description length: {len(job.get('description', '') or '')}")
             return self._fallback_assessment(job)
 
     def _fallback_assessment(self, job: Dict) -> Dict:
@@ -1980,11 +2043,11 @@ class JobScraperOrchestrator:
         self.analysis_mode = analysis_mode
         
         if self.debug:
-            print(f"🤖 Analysis parameters set:")
-            print(f"   - Mode: {analysis_mode}")
-            print(f"   - Criteria: {analysis_criteria[:100]}..." if len(analysis_criteria) > 100 else f"   - Criteria: {analysis_criteria}")
-            print(f"   - Boosters: {boost_descriptions[:100]}..." if len(boost_descriptions) > 100 else f"   - Boosters: {boost_descriptions}")
-            print(f"   - Threshold: {relevance_threshold}")
+            self.logger.info(f"🤖 Analysis parameters set:")
+            self.logger.info(f"   - Mode: {analysis_mode}")
+            self.logger.info(f"   - Criteria: {analysis_criteria[:100]}..." if len(analysis_criteria) > 100 else f"   - Criteria: {analysis_criteria}")
+            self.logger.info(f"   - Boosters: {boost_descriptions[:100]}..." if len(boost_descriptions) > 100 else f"   - Boosters: {boost_descriptions}")
+            self.logger.info(f"   - Threshold: {relevance_threshold}")
     
     def get_available_platforms(self) -> List[str]:
         """Get list of available platforms."""
@@ -1997,7 +2060,7 @@ class JobScraperOrchestrator:
                 scraper.close()
             except Exception as e:
                 if self.debug:
-                    print(f"❌ Error closing scraper: {e}")
+                    self.logger.error(f"❌ Error closing scraper: {e}")
     
     def __enter__(self):
         """Context manager entry."""
@@ -2029,16 +2092,16 @@ class JobScraperOrchestrator:
                 if new_language != current_language:
                     job['language'] = new_language
                     updated_count += 1
-                    print(f"   🔄 Updated language for '{job.get('title', 'Unknown')}': {current_language} → {new_language}")
+                    self.logger.info(f"   🔄 Updated language for '{job.get('title', 'Unknown')}': {current_language} → {new_language}")
                 else:
-                    print(f"   ✅ Language confirmed for '{job.get('title', 'Unknown')}': {new_language}")
+                    self.logger.info(f"   ✅ Language confirmed for '{job.get('title', 'Unknown')}': {new_language}")
             else:
                 skipped_count += 1
                 if current_language == 'unknown':
-                    print(f"   ⚠️ Still no full description for '{job.get('title', 'Unknown')}' ({len(description)} chars)")
+                    self.logger.warning(f"   ⚠️ Still no full description for '{job.get('title', 'Unknown')}' ({len(description)} chars)")
         
         if updated_count > 0:
-            print(f"   🌍 Language detection: {updated_count} jobs updated, {skipped_count} skipped")
+            self.logger.info(f"   🌍 Language detection: {updated_count} jobs updated, {skipped_count} skipped")
         
         return jobs_data
 
@@ -2113,5 +2176,5 @@ class JobScraperOrchestrator:
                     return 'en'
                     
         except Exception as e:
-            print(f"⚠️ LinkedIn language detection error: {e}")
+            self.logger.warning(f"⚠️ LinkedIn language detection error: {e}")
             return 'unknown'

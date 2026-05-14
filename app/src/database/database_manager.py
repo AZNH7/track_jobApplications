@@ -9,9 +9,19 @@ import logging
 import psycopg2
 import psycopg2.extras
 import psycopg2.pool
+from psycopg2.pool import PoolError
 from contextlib import contextmanager
 from typing import Optional, Tuple, Any, Dict, List
 import pandas as pd
+
+try:
+    from constants import (
+        DB_POOL_MIN_CONNS, DB_POOL_MAX_CONNS,
+        DB_CONNECT_TIMEOUT_SECS, DB_STATEMENT_TIMEOUT_MS,
+    )
+except ImportError:
+    DB_POOL_MIN_CONNS, DB_POOL_MAX_CONNS = 1, 10
+    DB_CONNECT_TIMEOUT_SECS, DB_STATEMENT_TIMEOUT_MS = 10, 30_000
 
 from .job_listings_table import JobListingsTable
 from .job_applications_table import JobApplicationsTable
@@ -54,20 +64,23 @@ class DatabaseManager:
     def _create_connection_pool(self):
         """Create database connection pool."""
         try:
-            # Get database configuration from environment
             db_config = {
                 'host': os.getenv('DB_HOST', 'localhost'),
                 'port': os.getenv('DB_PORT', '5432'),
                 'database': os.getenv('DB_NAME', 'job_tracker'),
                 'user': os.getenv('DB_USER', 'postgres'),
                 'password': os.getenv('DB_PASSWORD', ''),
-                'minconn': 1,
-                'maxconn': 10
+                'connect_timeout': DB_CONNECT_TIMEOUT_SECS,
+                'options': f'-c statement_timeout={DB_STATEMENT_TIMEOUT_MS}',
+                'minconn': DB_POOL_MIN_CONNS,
+                'maxconn': DB_POOL_MAX_CONNS,
             }
-            
-            self.connection_pool = psycopg2.pool.SimpleConnectionPool(**db_config)
+
+            # ThreadedConnectionPool is required for Streamlit's multi-threaded environment.
+            # SimpleConnectionPool is not thread-safe.
+            self.connection_pool = psycopg2.pool.ThreadedConnectionPool(**db_config)
             self.logger.info("✅ Database connection pool created")
-            
+
         except Exception as e:
             self.logger.error(f"❌ Failed to create connection pool: {e}")
             raise
@@ -112,14 +125,22 @@ class DatabaseManager:
             raise
     
     @contextmanager
-    def get_connection(self, timeout: float = 30.0):
+    def get_connection(self):
         """Get a connection from the pool."""
         if not self.connection_pool:
             self._create_connection_pool()
-        
-        conn = self.connection_pool.getconn()
+
+        try:
+            conn = self.connection_pool.getconn()
+        except PoolError as e:
+            self.logger.error(f"❌ Connection pool exhausted: {e}")
+            raise
+
         try:
             yield conn
+        except Exception:
+            conn.rollback()
+            raise
         finally:
             self.connection_pool.putconn(conn)
     
