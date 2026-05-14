@@ -4,6 +4,7 @@ MeineStadt.de Job Scraper
 Handles all MeineStadt.de-specific job scraping functionality.
 """
 
+import logging
 import requests
 import time
 import random
@@ -65,7 +66,7 @@ class MeinestadtScraper(BaseScraper):
 
         try:
             for keyword in keyword_list:
-                print(f"\n--- Searching MeineStadt.de for: '{keyword}' ---")
+                self.logger.info(f"\n--- Searching MeineStadt.de for: '{keyword}' ---")
                 # Store current search location for fallback in parsing
                 self._current_search_location = location
                 
@@ -110,7 +111,7 @@ class MeinestadtScraper(BaseScraper):
                     
                     search_url = f"{self.base_url}/jobs?" + urlencode(params)
                     
-                    print(f"📄 Fetching MeineStadt page {page} for '{keyword}'")
+                    self.logger.info(f"📄 Fetching MeineStadt page {page} for '{keyword}'")
                     
                     headers = generate_headers()
                     response = self.get_page(search_url, headers=headers, timeout=30, allow_redirects=True)
@@ -121,28 +122,28 @@ class MeinestadtScraper(BaseScraper):
                         if soup:
                             page_jobs = self._extract_meinestadt_jobs(soup, search_url)
                     elif response and response.status_code == 403:
-                        print(f"   ❌ HTTP 403 Forbidden. Anti-bot protection detected.")
+                        self.logger.error(f"   ❌ HTTP 403 Forbidden. Anti-bot protection detected.")
                         break
                     else:
                         status_code = response.status_code if response else 'N/A'
-                        print(f"   ❌ HTTP {status_code} for page {page}")
+                        self.logger.error(f"   ❌ HTTP {status_code} for page {page}")
                         break
 
                     if page_jobs:
                         filtered_jobs = [job for job in page_jobs if self._is_valid_job_listing(job)]
                         all_jobs.extend(filtered_jobs)
-                        print(f"   Found {len(filtered_jobs)} valid jobs on page {page} for '{keyword}'")
+                        self.logger.info(f"   Found {len(filtered_jobs)} valid jobs on page {page} for '{keyword}'")
 
                     # Break if no jobs found (likely end of results)
                     if page > 1 and not page_jobs:
-                        print("   ℹ️ No more jobs found for this keyword")
+                        self.logger.info("   ℹ️ No more jobs found for this keyword")
                         break
                     
                     # Randomized delay to mimic human browsing
                     time.sleep(random.uniform(1.5, 3.5))
                 
         except Exception as e:
-            print(f"❌ Error during MeineStadt search: {e}")
+            self.logger.error(f"❌ Error during MeineStadt search: {e}")
         
         # Deduplicate results
         seen_urls = set()
@@ -155,9 +156,9 @@ class MeinestadtScraper(BaseScraper):
         # When English is not selected, use local LLM for language detection
         # The LLM will be used in the job processing pipeline to determine language
         if not english_only:
-            print(f"   🤖 Will use local LLM for language detection during job processing")
+            self.logger.info(f"   🤖 Will use local LLM for language detection during job processing")
         
-        print(f"\n🎯 Total unique MeineStadt jobs found: {len(unique_jobs)}")
+        self.logger.info(f"\n🎯 Total unique MeineStadt jobs found: {len(unique_jobs)}")
         return unique_jobs
 
     def _extract_meinestadt_jobs(self, soup: BeautifulSoup, page_url: str) -> List[Dict]:
@@ -209,7 +210,7 @@ class MeinestadtScraper(BaseScraper):
                 if cards:
                     job_cards.extend(cards)
                     if self.debug:
-                        print(f"   Found {len(cards)} elements with selector: {selector}")
+                        self.logger.info(f"   Found {len(cards)} elements with selector: {selector}")
             
             # Remove duplicates while preserving order
             seen = set()
@@ -221,7 +222,7 @@ class MeinestadtScraper(BaseScraper):
                     unique_cards.append(card)
             
             if self.debug:
-                print(f"   Total unique elements found: {len(unique_cards)}")
+                self.logger.info(f"   Total unique elements found: {len(unique_cards)}")
             
             # Process each potential job card
             for card in unique_cards:
@@ -231,7 +232,7 @@ class MeinestadtScraper(BaseScraper):
                         jobs.append(job_data)
                 except Exception as e:
                     if self.debug:
-                        print(f"   ⚠️ Error parsing card: {e}")
+                        self.logger.warning(f"   ⚠️ Error parsing card: {e}")
                     continue
             
             # Fallback for simpler structures
@@ -239,7 +240,7 @@ class MeinestadtScraper(BaseScraper):
                 all_elements = soup.find_all(['div', 'article', 'li'])
                 job_cards = [elem for elem in all_elements if elem.get_text() and any(keyword in elem.get_text().lower() for keyword in ['developer', 'engineer', 'administrator', 'manager', 'analyst'])]
                 if self.debug:
-                    print(f"   ⚠️ Using fallback extraction, found {len(job_cards)} potential job elements")
+                    self.logger.warning(f"   ⚠️ Using fallback extraction, found {len(job_cards)} potential job elements")
 
             for card in job_cards:
                 try:
@@ -249,11 +250,11 @@ class MeinestadtScraper(BaseScraper):
                             jobs.append(job_data)
                 except Exception as e:
                     if self.debug:
-                        print(f"   ⚠️ Error parsing Meinestadt job card: {e}")
+                        self.logger.warning(f"   ⚠️ Error parsing Meinestadt job card: {e}")
                     continue
                     
         except Exception as e:
-            print(f"❌ Error extracting Meinestadt jobs: {e}")
+            self.logger.error(f"❌ Error extracting Meinestadt jobs: {e}")
         
         return jobs
 
@@ -367,7 +368,7 @@ class MeinestadtScraper(BaseScraper):
             # Try to get from cache first
             cached_details = job_details_cache.get_job_details_with_retry(job_url, max_retries=2, retry_delay=0.5)
             if cached_details:
-                print(f"   ✅ Found cached job details for: {job_url}")
+                self.logger.info(f"   ✅ Found cached job details for: {job_url}")
                 return cached_details
 
             # Fetch from MeineStadt
@@ -383,11 +384,11 @@ class MeinestadtScraper(BaseScraper):
                     html_content = response.text
                 else:
                     error_info = f"HTTP {response.status_code}" if response else 'No response'
-                    print(f"   ❌ Failed to fetch MeineStadt job details: {job_url} (Status: {response.status_code})")
+                    self.logger.error(f"   ❌ Failed to fetch MeineStadt job details: {job_url} (Status: {response.status_code})")
 
             except Exception as e:
                 error_info = f"Request error: {str(e)}"
-                print(f"   ❌ Error fetching MeineStadt job details for {job_url}: {e}")
+                self.logger.error(f"   ❌ Error fetching MeineStadt job details for {job_url}: {e}")
 
             # Parse and extract details
             job_details = {}
@@ -451,18 +452,18 @@ class MeinestadtScraper(BaseScraper):
                     job_details['scraped_date'] = datetime.now()
                     job_details['url'] = job_url
                     
-                    print(f"   ✅ Successfully extracted job details from MeineStadt")
+                    self.logger.info(f"   ✅ Successfully extracted job details from MeineStadt")
                     
                 except Exception as e:
                     error_info = f"Parsing error: {str(e)}"
-                    print(f"   ❌ Error parsing MeineStadt job details: {e}")
+                    self.logger.error(f"   ❌ Error parsing MeineStadt job details: {e}")
             
             # Always cache the result (success or error)
             try:
                 if job_details:
                     # Cache successful result
                     job_details_cache.cache_job_details(job_url, job_details)
-                    print(f"   💾 Cached job details for: {job_url}")
+                    self.logger.info(f"   💾 Cached job details for: {job_url}")
                 else:
                     # Cache error information
                     error_details = {
@@ -473,14 +474,14 @@ class MeinestadtScraper(BaseScraper):
                         'url': job_url
                     }
                     job_details_cache.cache_job_details(job_url, error_details)
-                    print(f"   💾 Cached error details for: {job_url}")
+                    self.logger.info(f"   💾 Cached error details for: {job_url}")
             except Exception as e:
-                print(f"   ⚠️ Failed to cache job details: {e}")
+                self.logger.warning(f"   ⚠️ Failed to cache job details: {e}")
             
             return job_details if job_details else None
 
         except Exception as e:
-            print(f"   ⚠️ Unexpected error in fetch_job_details for {job_url}: {e}")
+            self.logger.warning(f"   ⚠️ Unexpected error in fetch_job_details for {job_url}: {e}")
             return None 
 
     def _is_valid_job_listing(self, job: Dict) -> bool:

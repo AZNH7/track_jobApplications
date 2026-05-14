@@ -141,9 +141,9 @@ class DataManagementView(BaseJobTracker):
                 result['applications'] = self.db_manager.execute_query("SELECT COUNT(*) FROM job_applications", fetch='one')[0] if self.db_manager.execute_query("SELECT COUNT(*) FROM job_applications", fetch='one') else 0
                 result['offers'] = self.db_manager.execute_query("SELECT COUNT(*) FROM job_offers", fetch='one')[0] if self.db_manager.execute_query("SELECT COUNT(*) FROM job_offers", fetch='one') else 0
                 result['emails'] = 0  # Email analysis table removed
-            except:
+            except Exception:
                 pass
-            
+
             return result
             
         except Exception as e:

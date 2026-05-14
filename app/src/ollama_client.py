@@ -22,7 +22,7 @@ class OllamaClient:
         from config_manager import get_config_manager
         config_manager = get_config_manager()
         self.host = os.getenv('OLLAMA_HOST', config_manager.get_value('llm.ollama_host', 'http://localhost:11434')).rstrip('/')
-        self.timeout = int(os.getenv('OLLAMA_TIMEOUT', config_manager.get_value('llm.ollama_timeout', 120)))
+        self.timeout = int(os.getenv('OLLAMA_TIMEOUT', config_manager.get_value('llm.ollama_timeout', 300)))
         self.max_retries = int(os.getenv('OLLAMA_MAX_RETRIES', config_manager.get_value('llm.ollama_max_retries', 3)))
         self.retry_delay = int(os.getenv('OLLAMA_RETRY_DELAY', 5))
         self.batch_size = int(os.getenv('OLLAMA_BATCH_SIZE', 8))
@@ -225,7 +225,7 @@ class OllamaClient:
             # Get configuration for default model
             from config_manager import get_config_manager
             config_manager = get_config_manager()
-            default_model = model or config_manager.get_value('llm.ollama_model', 'llama3.2:latest')
+            default_model = model or config_manager.get_value('llm.ollama_model', 'gpt-oss:latest')
             
             # Log the model being used for debugging
             self.logger.debug(f"Using model: {default_model}")

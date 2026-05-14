@@ -19,7 +19,8 @@ class FilteredJobsTable(BaseTable):
                 id SERIAL PRIMARY KEY,
                 job_listing_id INTEGER REFERENCES job_listings(id) ON DELETE CASCADE,
                 filter_reason TEXT,
-                filtered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                filtered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(job_listing_id)
             )
         ''')
     

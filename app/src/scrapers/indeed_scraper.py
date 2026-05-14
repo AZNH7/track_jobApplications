@@ -4,6 +4,7 @@ Indeed Job Scraper
 Handles all Indeed-specific job scraping functionality.
 """
 
+import logging
 import requests
 import time
 import random
@@ -43,7 +44,7 @@ class IndeedScraper(BaseScraper):
         
         # Only Germany is supported
         if country != 'de':
-            print(f"⚠️ Warning: Only Germany (de) is supported. Defaulting to Indeed Germany.")
+            self.logger.warning(f"⚠️ Warning: Only Germany (de) is supported. Defaulting to Indeed Germany.")
             country = 'de'
         
         self.country = country
@@ -78,7 +79,7 @@ class IndeedScraper(BaseScraper):
         """
         all_jobs = []
         
-        print(f"🔍 Searching Indeed jobs (enhanced): {keywords} in {location}")
+        self.logger.info(f"🔍 Searching Indeed jobs (enhanced): {keywords} in {location}")
 
         # Split keywords to search one by one
         keyword_list = [k.strip() for k in keywords.split(',') if k.strip()]
@@ -86,16 +87,16 @@ class IndeedScraper(BaseScraper):
             keyword_list = [keywords]
 
         for keyword in keyword_list:
-            print(f"\n--- Searching Indeed for: '{keyword}' ---")
+            self.logger.info(f"\n--- Searching Indeed for: '{keyword}' ---")
             
             try:
-                print(f"🌐 Using configured session for '{keyword}'...")
+                self.logger.info(f"🌐 Using configured session for '{keyword}'...")
                 flare_jobs = self._search_indeed_with_session(keyword, location, max_pages, english_only)
                 if flare_jobs:
                     all_jobs.extend(flare_jobs)
-                    print(f"✅ Found {len(flare_jobs)} jobs for '{keyword}'")
+                    self.logger.info(f"✅ Found {len(flare_jobs)} jobs for '{keyword}'")
             except Exception as e:
-                print(f"❌ Search method failed for '{keyword}': {e}")
+                self.logger.error(f"❌ Search method failed for '{keyword}': {e}")
 
         # Deduplicate results
         seen_urls = set()
@@ -105,7 +106,7 @@ class IndeedScraper(BaseScraper):
                 unique_jobs.append(job)
                 seen_urls.add(job_url)
 
-        print(f"\n🎯 Total unique Indeed jobs found: {len(unique_jobs)}")
+        self.logger.info(f"\n🎯 Total unique Indeed jobs found: {len(unique_jobs)}")
         return unique_jobs
 
     def _search_indeed_with_session(self, keywords: str, location: str = "", max_pages: int = 3, english_only: bool = False) -> List[Dict]:
@@ -124,7 +125,7 @@ class IndeedScraper(BaseScraper):
             search_location = clean_location
             remote_filter = False
         
-        print(f"🌐 Enhanced search: '{clean_keywords}' in '{search_location}'")
+        self.logger.info(f"🌐 Enhanced search: '{clean_keywords}' in '{search_location}'")
         
         for page in range(max_pages):
             start = page * 10
@@ -146,8 +147,8 @@ class IndeedScraper(BaseScraper):
                 params['lang'] = 'en'
 
             url = f"{self.base_url}/jobs?{urlencode(params)}"
-            print(f"   📄 Page {page + 1}/{max_pages}")
-            print(f"   [DEBUG] URL: {url}")
+            self.logger.info(f"   📄 Page {page + 1}/{max_pages}")
+            self.logger.info(f"   [DEBUG] URL: {url}")
             
             # Use cloudscraper timeout configuration instead of max_timeout
             timeout = 300 if page == 0 else 240  # Convert from milliseconds to seconds
@@ -161,24 +162,24 @@ class IndeedScraper(BaseScraper):
                     page_jobs = self._extract_indeed_jobs_from_html(soup, url)
                     jobs.extend(page_jobs)
                 else:
-                    print("   ❌ Failed to parse HTML content.")
+                    self.logger.error("   ❌ Failed to parse HTML content.")
             else:
                 status = response.status_code if response else 'N/A'
-                print(f"   ❌ Failed to fetch page {page + 1}, status code: {status}")
+                self.logger.error(f"   ❌ Failed to fetch page {page + 1}, status code: {status}")
                 # Potentially add logic for different status codes
                 if status == 429: # Too Many Requests
-                    print("   🕒 Rate limited. Waiting before next attempt.")
+                    self.logger.info("   🕒 Rate limited. Waiting before next attempt.")
                     time.sleep(60)
                 elif response is not None:
                     try:
                         # Safely check for captcha without printing binary data
                         response_text = response.text if hasattr(response, 'text') else str(response.content, 'utf-8', errors='ignore')
                         if "captcha" in response_text.lower():
-                            print(f"   🧩 Manual CAPTCHA required - Indeed blocking automated access")
+                            self.logger.info(f"   🧩 Manual CAPTCHA required - Indeed blocking automated access")
                             break
                     except Exception as e:
                         if self.debug:
-                            print(f"   ⚠️ Could not check response for CAPTCHA: {e}")
+                            self.logger.warning(f"   ⚠️ Could not check response for CAPTCHA: {e}")
                 else:
                     break
                     
@@ -208,14 +209,14 @@ class IndeedScraper(BaseScraper):
                 cards = soup.select(selector)
                 if cards:
                     job_cards = cards
-                    print(f"   🎯 Found {len(cards)} job cards using selector: {selector}")
+                    self.logger.info(f"   🎯 Found {len(cards)} job cards using selector: {selector}")
                     break
             
             if not job_cards:
                 # Emergency fallback: look for any container with job-like content
                 all_divs = soup.find_all('div')
                 job_cards = [div for div in all_divs if div.get_text() and any(keyword in div.get_text().lower() for keyword in ['developer', 'engineer', 'administrator', 'manager'])]
-                print(f"   ⚠️ Using emergency fallback, found {len(job_cards)} potential job elements")
+                self.logger.warning(f"   ⚠️ Using emergency fallback, found {len(job_cards)} potential job elements")
             
             for card in job_cards:
                 try:
@@ -226,7 +227,7 @@ class IndeedScraper(BaseScraper):
                     continue
                     
         except Exception as e:
-            print(f"❌ Error extracting Indeed jobs: {e}")
+            self.logger.error(f"❌ Error extracting Indeed jobs: {e}")
         
         return jobs
 
@@ -337,16 +338,16 @@ class IndeedScraper(BaseScraper):
                         retry_delay=cache_retry_delay
                     )
                     if cached_details:
-                        print(f"   ✅ Found cached job details for: {job_url}")
+                        self.logger.info(f"   ✅ Found cached job details for: {job_url}")
                         return cached_details
                     break  # Exit retry loop if we got a response (even if None)
                 except Exception as cache_error:
-                    print(f"   ⚠️ Cache retry {cache_attempt + 1}/{max_cache_retries} failed: {cache_error}")
+                    self.logger.warning(f"   ⚠️ Cache retry {cache_attempt + 1}/{max_cache_retries} failed: {cache_error}")
                     if cache_attempt < max_cache_retries - 1:
                         time.sleep(cache_retry_delay)
             
             # If not in cache, fetch fresh data
-            print(f"   🔄 Fetching fresh job details for: {job_url}")
+            self.logger.info(f"   🔄 Fetching fresh job details for: {job_url}")
             
             # Enhanced Indeed-specific headers and timeout
             headers = {
@@ -378,27 +379,27 @@ class IndeedScraper(BaseScraper):
                         html_content = response.text
                         break
                     elif response and response.status_code in [403, 429, 500, 502, 503, 504]:
-                        print(f"   ⚠️ HTTP {response.status_code} for job details (attempt {request_attempt + 1}/{max_request_retries}): {job_url}")
+                        self.logger.warning(f"   ⚠️ HTTP {response.status_code} for job details (attempt {request_attempt + 1}/{max_request_retries}): {job_url}")
                         if request_attempt < max_request_retries - 1:
                             time.sleep(request_retry_delay * (request_attempt + 1))  # Exponential backoff
                             continue
                     else:
                         status_code = response.status_code if response else 'No response'
-                        print(f"   ❌ HTTP {status_code} for job details: {job_url}")
+                        self.logger.error(f"   ❌ HTTP {status_code} for job details: {job_url}")
                         break
                 except Exception as request_error:
-                    print(f"   ⚠️ Request attempt {request_attempt + 1}/{max_request_retries} failed: {request_error}")
+                    self.logger.warning(f"   ⚠️ Request attempt {request_attempt + 1}/{max_request_retries} failed: {request_error}")
                     if request_attempt < max_request_retries - 1:
                         time.sleep(request_retry_delay * (request_attempt + 1))
                         continue
                     else:
-                        print(f"   ❌ All request attempts failed for: {job_url}")
+                        self.logger.error(f"   ❌ All request attempts failed for: {job_url}")
             
             # Handle failed requests
             if not response or response.status_code != 200:
                 status_code = response.status_code if response else 'No response'
                 error_info = f"HTTP {status_code} error after {max_request_retries} attempts"
-                print(f"   ❌ Failed to fetch Indeed job details: {job_url} (Status: {status_code})")
+                self.logger.error(f"   ❌ Failed to fetch Indeed job details: {job_url} (Status: {status_code})")
                 
                 # Cache error details
                 error_details = {
@@ -426,14 +427,14 @@ class IndeedScraper(BaseScraper):
                     try:
                         cache_success = job_details_cache.cache_job_details(job_url, error_details, is_valid=False, error_message=f"HTTP {status_code} error")
                         if cache_success:
-                            print(f"   ✅ Successfully cached Indeed error details for: {job_url}")
+                            self.logger.info(f"   ✅ Successfully cached Indeed error details for: {job_url}")
                             break
                         else:
-                            print(f"   ⚠️ Cache save attempt {cache_save_attempt + 1}/{max_cache_save_retries} failed for: {job_url}")
+                            self.logger.warning(f"   ⚠️ Cache save attempt {cache_save_attempt + 1}/{max_cache_save_retries} failed for: {job_url}")
                             if cache_save_attempt < max_cache_save_retries - 1:
                                 time.sleep(cache_save_retry_delay)
                     except Exception as cache_save_error:
-                        print(f"   ⚠️ Cache save error (attempt {cache_save_attempt + 1}/{max_cache_save_retries}): {cache_save_error}")
+                        self.logger.warning(f"   ⚠️ Cache save error (attempt {cache_save_attempt + 1}/{max_cache_save_retries}): {cache_save_error}")
                         if cache_save_attempt < max_cache_save_retries - 1:
                             time.sleep(cache_save_retry_delay)
                 
@@ -442,7 +443,7 @@ class IndeedScraper(BaseScraper):
             # Enhanced HTML parsing with error handling
             if not html_content:
                 error_info = "No HTML content received after successful HTTP response"
-                print(f"   ❌ No HTML content received for: {job_url}")
+                self.logger.error(f"   ❌ No HTML content received for: {job_url}")
                 
                 error_details = {
                     "title": "Error - No Content",
@@ -463,7 +464,7 @@ class IndeedScraper(BaseScraper):
                 try:
                     job_details_cache.cache_job_details(job_url, error_details, is_valid=False, error_message="No HTML content received")
                 except Exception as cache_error:
-                    print(f"   ⚠️ Failed to cache error details: {cache_error}")
+                    self.logger.warning(f"   ⚠️ Failed to cache error details: {cache_error}")
                 
                 return None
             
@@ -548,11 +549,11 @@ class IndeedScraper(BaseScraper):
                 job_details['html_content'] = html_content
                 job_details['last_accessed'] = datetime.now()
                 
-                print(f"   ✅ Successfully extracted job details from Indeed")
+                self.logger.info(f"   ✅ Successfully extracted job details from Indeed")
                 
             except Exception as e:
                 error_info = f"Parsing error: {str(e)}"
-                print(f"   ❌ Error parsing Indeed job details: {e}")
+                self.logger.error(f"   ❌ Error parsing Indeed job details: {e}")
                 
                 # Create error details with partial content
                 job_details = {
@@ -582,10 +583,10 @@ class IndeedScraper(BaseScraper):
                         # Cache successful result
                         cache_success = job_details_cache.cache_job_details(job_url, job_details)
                         if cache_success:
-                            print(f"   ✅ Successfully cached Indeed job details for: {job_url}")
+                            self.logger.info(f"   ✅ Successfully cached Indeed job details for: {job_url}")
                             break
                         else:
-                            print(f"   ⚠️ Cache save attempt {cache_save_attempt + 1}/{max_cache_save_retries} failed for: {job_url}")
+                            self.logger.warning(f"   ⚠️ Cache save attempt {cache_save_attempt + 1}/{max_cache_save_retries} failed for: {job_url}")
                             if cache_save_attempt < max_cache_save_retries - 1:
                                 time.sleep(cache_save_retry_delay)
                     else:
@@ -601,24 +602,24 @@ class IndeedScraper(BaseScraper):
                         }
                         cache_success = job_details_cache.cache_job_details(job_url, error_details, is_valid=False, error_message=error_info or 'Unknown error')
                         if cache_success:
-                            print(f"   ✅ Successfully cached Indeed error details for: {job_url}")
+                            self.logger.info(f"   ✅ Successfully cached Indeed error details for: {job_url}")
                             break
                         else:
-                            print(f"   ⚠️ Cache save attempt {cache_save_attempt + 1}/{max_cache_save_retries} failed for: {job_url}")
+                            self.logger.warning(f"   ⚠️ Cache save attempt {cache_save_attempt + 1}/{max_cache_save_retries} failed for: {job_url}")
                             if cache_save_attempt < max_cache_save_retries - 1:
                                 time.sleep(cache_save_retry_delay)
                 except Exception as cache_save_error:
-                    print(f"   ⚠️ Cache save error (attempt {cache_save_attempt + 1}/{max_cache_save_retries}): {cache_save_error}")
+                    self.logger.warning(f"   ⚠️ Cache save error (attempt {cache_save_attempt + 1}/{max_cache_save_retries}): {cache_save_error}")
                     if cache_save_attempt < max_cache_save_retries - 1:
                         time.sleep(cache_save_retry_delay)
             
             if not cache_success:
-                print(f"   ⚠️ Failed to cache job details after {max_cache_save_retries} attempts for: {job_url}")
+                self.logger.warning(f"   ⚠️ Failed to cache job details after {max_cache_save_retries} attempts for: {job_url}")
             
             return job_details if job_details and job_details.get('title') != "Error - Parsing Failed" else None
 
         except Exception as e:
-            print(f"   ⚠️ Unexpected error in fetch_job_details for {job_url}: {e}")
+            self.logger.warning(f"   ⚠️ Unexpected error in fetch_job_details for {job_url}: {e}")
             
             # Try to cache the error details
             try:
@@ -639,7 +640,7 @@ class IndeedScraper(BaseScraper):
                 }
                 job_details_cache.cache_job_details(job_url, error_details, is_valid=False, error_message=f"Unexpected error: {str(e)}")
             except Exception as cache_error:
-                print(f"   ⚠️ Failed to cache error details: {cache_error}")
+                self.logger.warning(f"   ⚠️ Failed to cache error details: {cache_error}")
             
             return None
 

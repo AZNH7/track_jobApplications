@@ -1,3 +1,7 @@
+import logging
+
+_logger = logging.getLogger(__name__)
+
 """
 Scraper Utilities
 
@@ -60,7 +64,7 @@ class JobFilters:
                 job['keyword_match_score'] = match_score
                 filtered_jobs.append(job)
         
-        print(f"   🔍 {platform_name}: Filtered {len(jobs) - len(filtered_jobs)} jobs by keywords")
+        _logger.info(f"   🔍 {platform_name}: Filtered {len(jobs) - len(filtered_jobs)} jobs by keywords")
         return filtered_jobs
     
     @staticmethod
@@ -119,7 +123,7 @@ class JobFilters:
         
         filtered_count = len(jobs) - len(filtered_jobs)
         filter_type = f"enhanced distance ({max_distance_km}km)" if use_enhanced_filtering else "basic German"
-        print(f"   🌍 {platform_name}: Filtered {filtered_count} jobs by location ({filter_type})")
+        _logger.info(f"   🌍 {platform_name}: Filtered {filtered_count} jobs by location ({filter_type})")
         return filtered_jobs
     
     @staticmethod
@@ -153,7 +157,7 @@ class JobFilters:
                 filtered_jobs.append(job)
         
         lang_type = "English" if english_only else "German"
-        print(f"   🗣️ {platform_name}: Filtered {len(jobs) - len(filtered_jobs)} non-{lang_type} jobs")
+        _logger.info(f"   🗣️ {platform_name}: Filtered {len(jobs) - len(filtered_jobs)} non-{lang_type} jobs")
         return filtered_jobs
     
     @staticmethod
@@ -474,7 +478,7 @@ class JobFilters:
                 distance = JobFilters._haversine_distance(
                     essen_coords[0], essen_coords[1], lat, lon
                 )
-                print(f"   📍 Location check: {location} -> {city_name} = {distance:.1f}km from Essen (max: {max_distance_km}km)")
+                _logger.info(f"   📍 Location check: {location} -> {city_name} = {distance:.1f}km from Essen (max: {max_distance_km}km)")
                 return distance <= max_distance_km
         
         # Special handling for partial matches and common variations
@@ -534,7 +538,7 @@ class JobFilters:
                 distance = JobFilters._haversine_distance(
                     reference_coords[0], reference_coords[1], lat, lon
                 )
-                print(f"   📍 Location check: {location} -> {city_name} = {distance:.1f}km from {reference_location} (max: {max_distance_km}km)")
+                _logger.info(f"   📍 Location check: {location} -> {city_name} = {distance:.1f}km from {reference_location} (max: {max_distance_km}km)")
                 return distance <= max_distance_km
         
         # Special handling for partial matches and common variations

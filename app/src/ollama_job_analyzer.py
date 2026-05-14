@@ -5,8 +5,6 @@ import time
 from datetime import datetime
 import logging
 import os
-import sys
-sys.path.append('/app/src')
 from config_manager import get_config_manager
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -190,9 +188,9 @@ class OllamaJobAnalyzer:
                         json_str = response[start:end]
                         analysis = json.loads(json_str)
                         return analysis if analysis else self._fallback_analysis(job_title, job_description)
-                except:
+                except (json.JSONDecodeError, ValueError):
                     pass
-        
+
         # Fallback to rule-based analysis
         return self._fallback_analysis(job_title, job_description)
     

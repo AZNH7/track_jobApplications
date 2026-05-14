@@ -847,7 +847,7 @@ class JobBrowserView(BaseView):
                                 scraped_date = datetime.fromisoformat(scraped_date.replace('Z', '+00:00'))
                             if isinstance(scraped_date, datetime):
                                 st.markdown(f"**📅 Found:** {scraped_date.strftime('%Y-%m-%d')}")
-                        except:
+                        except (ValueError, TypeError):
                             pass
                     
                     posted_date = job.get('posted_date')
@@ -857,7 +857,7 @@ class JobBrowserView(BaseView):
                                 posted_date = datetime.fromisoformat(posted_date.replace('Z', '+00:00'))
                             if isinstance(posted_date, datetime):
                                 st.markdown(f"**✍️ Posted:** {posted_date.strftime('%Y-%m-%d')}")
-                        except:
+                        except (ValueError, TypeError):
                             pass
                 
                 # Job snippet
@@ -1452,7 +1452,7 @@ class JobBrowserView(BaseView):
                             metadata_dict = json.loads(cache_metadata)
                             for key, value in metadata_dict.items():
                                 st.write(f"**{key}:** {value}")
-                        except:
+                        except (json.JSONDecodeError, ValueError):
                             st.code(cache_metadata)
                     else:
                         for key, value in cache_metadata.items():

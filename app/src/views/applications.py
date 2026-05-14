@@ -150,7 +150,7 @@ class ApplicationsView(BaseJobTracker):
                                 applied_date_str = applied_date.strftime('%Y-%m-%d')
                             else:
                                 applied_date_str = str(applied_date)
-                        except:
+                        except (ValueError, AttributeError):
                             applied_date_str = str(applied_date)
                     
                     st.markdown(f"""

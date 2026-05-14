@@ -4,6 +4,7 @@ LinkedIn Job Scraper
 Handles all LinkedIn-specific job scraping functionality with support for authenticated scraping.
 """
 
+import logging
 import requests
 import time
 import random
@@ -19,7 +20,7 @@ try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
-    print("⚠️ python-dotenv not found. Install with: pip install python-dotenv")
+    self.logger.warning("⚠️ python-dotenv not found. Install with: pip install python-dotenv")
 
 try:
     from .base_scraper import BaseScraper
@@ -48,12 +49,12 @@ class LinkedInScraper(BaseScraper):
         # Get the LinkedIn session cookie from environment variable
         self.li_at_cookie = os.getenv('LINKEDIN_LI_AT')
         if not self.li_at_cookie or self.li_at_cookie == "Your_long_cookie_string_goes_here":
-            print("⚠️ WARNING: LinkedIn `li_at` cookie not found or not configured.")
-            print("   Create a .env file with LINKEDIN_LI_AT='your_cookie_value' for authenticated scraping.")
-            print("   Scraping will continue without authentication (limited results).")
+            self.logger.warning("⚠️ WARNING: LinkedIn `li_at` cookie not found or not configured.")
+            self.logger.info("   Create a .env file with LINKEDIN_LI_AT='your_cookie_value' for authenticated scraping.")
+            self.logger.info("   Scraping will continue without authentication (limited results).")
             self.li_at_cookie = None
         else:
-            print("✅ LinkedIn authentication cookie found - using authenticated scraping")
+            self.logger.info("✅ LinkedIn authentication cookie found - using authenticated scraping")
             self.li_at_cookie = self.li_at_cookie.strip('"')  # Remove quotes if present
 
     def get_platform_name(self) -> str:
@@ -93,7 +94,7 @@ class LinkedInScraper(BaseScraper):
         Returns:
             List of job dictionaries
         """
-        print(f"🔍 LinkedIn Job Search: {keywords} in {location or 'Not specified'}")
+        self.logger.info(f"🔍 LinkedIn Job Search: {keywords} in {location or 'Not specified'}")
         
         all_jobs = []
         
@@ -102,16 +103,16 @@ class LinkedInScraper(BaseScraper):
             keyword_list = [keywords]
 
         for keyword in keyword_list:
-            print(f"\n--- Searching for keyword: '{keyword}' ---")
+            self.logger.info(f"\n--- Searching for keyword: '{keyword}' ---")
             try:
                 api_jobs = self._search_linkedin_public(keyword, location, max_pages)
                 all_jobs.extend(api_jobs)
-                print(f"✅ Found {len(api_jobs)} jobs for '{keyword}' via LinkedIn public API")
+                self.logger.info(f"✅ Found {len(api_jobs)} jobs for '{keyword}' via LinkedIn public API")
             except Exception as e:
-                print(f"⚠️ LinkedIn public API search for '{keyword}' failed: {e}")
+                self.logger.warning(f"⚠️ LinkedIn public API search for '{keyword}' failed: {e}")
 
             sleep_time = random.uniform(2, 5)
-            print(f"   ... waiting {sleep_time:.2f} seconds before next keyword ...")
+            self.logger.info(f"   ... waiting {sleep_time:.2f} seconds before next keyword ...")
             time.sleep(sleep_time)
 
         # Deduplicate results
@@ -122,7 +123,7 @@ class LinkedInScraper(BaseScraper):
                 unique_jobs.append(job)
                 seen_urls.add(job_url)
 
-        print(f"\n🎯 Total unique LinkedIn jobs found: {len(unique_jobs)}")
+        self.logger.info(f"\n🎯 Total unique LinkedIn jobs found: {len(unique_jobs)}")
         
         return unique_jobs
     
@@ -146,9 +147,9 @@ class LinkedInScraper(BaseScraper):
         cookies = {}
         if self.li_at_cookie:
             cookies = {'li_at': self.li_at_cookie}
-            print(f"🔐 Using authenticated LinkedIn search with session cookie")
+            self.logger.info(f"🔐 Using authenticated LinkedIn search with session cookie")
         else:
-            print(f"⚠️ Using unauthenticated LinkedIn search (limited results)")
+            self.logger.warning(f"⚠️ Using unauthenticated LinkedIn search (limited results)")
         
         for page in range(max_pages):
             start = page * 25 # LinkedIn uses a start index, 25 jobs per page
@@ -169,7 +170,7 @@ class LinkedInScraper(BaseScraper):
             
             api_url = f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?{urlencode(params)}"
             
-            print(f"🔍 Searching LinkedIn {'AUTHENTICATED' if self.li_at_cookie else 'public'} API page {page+1}: {clean_keywords} in {clean_location or 'anywhere'}")
+            self.logger.info(f"🔍 Searching LinkedIn {'AUTHENTICATED' if self.li_at_cookie else 'public'} API page {page+1}: {clean_keywords} in {clean_location or 'anywhere'}")
             
             # Use authenticated request if cookie is available
             response = self.get_page(api_url, timeout=30, cookies=cookies)
@@ -177,20 +178,20 @@ class LinkedInScraper(BaseScraper):
                 soup = self.get_soup(response.content)
             else:
                 status = response.status_code if response else "N/A"
-                print(f"   ❌ Failed to fetch LinkedIn public API: {api_url} (Status: {status})")
+                self.logger.error(f"   ❌ Failed to fetch LinkedIn public API: {api_url} (Status: {status})")
                 break
                 
             if not soup:
-                print("   ❌ Failed to parse response content.")
+                self.logger.error("   ❌ Failed to parse response content.")
                 break
 
             job_cards = soup.find_all('div', {'class': 'base-card'})
             
             if not job_cards:
-                print("   ⚠️ No job cards found on this page. Ending search for this keyword.")
+                self.logger.warning("   ⚠️ No job cards found on this page. Ending search for this keyword.")
                 break
             
-            print(f"   📊 Found {len(job_cards)} job cards in API response")
+            self.logger.info(f"   📊 Found {len(job_cards)} job cards in API response")
             
             for card in job_cards:
                 try:
@@ -200,7 +201,7 @@ class LinkedInScraper(BaseScraper):
                             jobs.append(job_data)
                 except Exception as e:
                     if self.debug:
-                        print(f"   ❌ Error parsing LinkedIn job card: {e}")
+                        self.logger.error(f"   ❌ Error parsing LinkedIn job card: {e}")
                     continue
         
         return jobs
@@ -244,7 +245,7 @@ class LinkedInScraper(BaseScraper):
             return job_data
         except Exception as e:
             if self.debug:
-                print(f"Error parsing LinkedIn job card: {e}")
+                self.logger.info(f"Error parsing LinkedIn job card: {e}")
             return None
 
     def fetch_job_details(self, job_url: str) -> Optional[Dict[str, Any]]:
@@ -269,16 +270,16 @@ class LinkedInScraper(BaseScraper):
                         retry_delay=cache_retry_delay
                     )
                     if cached_details:
-                        print(f"   📋 Using cached job details for: {job_url}")
+                        self.logger.info(f"   📋 Using cached job details for: {job_url}")
                         return cached_details
                     break  # Exit retry loop if we got a response (even if None)
                 except Exception as cache_error:
-                    print(f"   ⚠️ Cache retry {cache_attempt + 1}/{max_cache_retries} failed: {cache_error}")
+                    self.logger.warning(f"   ⚠️ Cache retry {cache_attempt + 1}/{max_cache_retries} failed: {cache_error}")
                     if cache_attempt < max_cache_retries - 1:
                         time.sleep(cache_retry_delay)
             
             # If not in cache, fetch fresh data
-            print(f"   🔄 Fetching fresh job details for: {job_url}")
+            self.logger.info(f"   🔄 Fetching fresh job details for: {job_url}")
             
             # Enhanced LinkedIn-specific headers and timeout
             headers = {
@@ -299,9 +300,9 @@ class LinkedInScraper(BaseScraper):
             cookies = {}
             if self.li_at_cookie:
                 cookies = {'li_at': self.li_at_cookie}
-                print(f"   🔐 Using authenticated request for job details")
+                self.logger.info(f"   🔐 Using authenticated request for job details")
             else:
-                print(f"   ⚠️ Using unauthenticated request for job details")
+                self.logger.warning(f"   ⚠️ Using unauthenticated request for job details")
             
             html_content = None
             error_info = None
@@ -321,13 +322,13 @@ class LinkedInScraper(BaseScraper):
                             break
                         else:
                             error_msg = result.get('message', 'Unknown error') if result else 'No response'
-                            print(f"   ⚠️ FlareSolverr attempt {request_attempt + 1}/{max_request_retries} failed: {error_msg}")
+                            self.logger.warning(f"   ⚠️ FlareSolverr attempt {request_attempt + 1}/{max_request_retries} failed: {error_msg}")
                             if request_attempt < max_request_retries - 1:
                                 time.sleep(request_retry_delay * (request_attempt + 1))
                                 continue
                             else:
                                 error_info = f"FlareSolverr failed: {error_msg}"
-                                print(f"   ❌ All FlareSolverr attempts failed for: {job_url}")
+                                self.logger.error(f"   ❌ All FlareSolverr attempts failed for: {job_url}")
                     else:
                         # Use authenticated request with cookies
                         response = self.make_rate_limited_request(job_url, headers=headers, cookies=cookies, timeout=45)  # Increased timeout
@@ -335,21 +336,21 @@ class LinkedInScraper(BaseScraper):
                             html_content = response.text
                             break
                         elif response and response.status_code in [403, 429, 500, 502, 503, 504]:
-                            print(f"   ⚠️ HTTP {response.status_code} for job details (attempt {request_attempt + 1}/{max_request_retries}): {job_url}")
+                            self.logger.warning(f"   ⚠️ HTTP {response.status_code} for job details (attempt {request_attempt + 1}/{max_request_retries}): {job_url}")
                             if request_attempt < max_request_retries - 1:
                                 time.sleep(request_retry_delay * (request_attempt + 1))  # Exponential backoff
                                 continue
                         else:
                             status_code = response.status_code if response else 'No response'
-                            print(f"   ❌ HTTP {status_code} for job details: {job_url}")
+                            self.logger.error(f"   ❌ HTTP {status_code} for job details: {job_url}")
                             break
                 except Exception as request_error:
-                    print(f"   ⚠️ Request attempt {request_attempt + 1}/{max_request_retries} failed: {request_error}")
+                    self.logger.warning(f"   ⚠️ Request attempt {request_attempt + 1}/{max_request_retries} failed: {request_error}")
                     if request_attempt < max_request_retries - 1:
                         time.sleep(request_retry_delay * (request_attempt + 1))
                         continue
                     else:
-                        print(f"   ❌ All request attempts failed for: {job_url}")
+                        self.logger.error(f"   ❌ All request attempts failed for: {job_url}")
             
             # Handle failed requests
             if not html_content:
@@ -376,10 +377,10 @@ class LinkedInScraper(BaseScraper):
                 for save_attempt in range(max_save_retries):
                     try:
                         job_details_cache.cache_job_details(job_url, error_details, is_valid=False, error_message=f"HTTP {response.status_code if response else 'No response'} error")
-                        print(f"   💾 Cached error details for: {job_url}")
+                        self.logger.info(f"   💾 Cached error details for: {job_url}")
                         break
                     except Exception as save_error:
-                        print(f"   ⚠️ Cache save attempt {save_attempt + 1}/{max_save_retries} failed: {save_error}")
+                        self.logger.warning(f"   ⚠️ Cache save attempt {save_attempt + 1}/{max_save_retries} failed: {save_error}")
                         if save_attempt < max_save_retries - 1:
                             time.sleep(save_retry_delay)
                 
@@ -390,7 +391,7 @@ class LinkedInScraper(BaseScraper):
             try:
                 soup = BeautifulSoup(html_content, 'html.parser')
             except Exception as parse_error:
-                print(f"   ⚠️ HTML parsing error for: {job_url} - {parse_error}")
+                self.logger.warning(f"   ⚠️ HTML parsing error for: {job_url} - {parse_error}")
                 # Cache partial HTML for debugging
                 error_details = {
                     "title": "Error - HTML Parse Failed",
@@ -415,10 +416,10 @@ class LinkedInScraper(BaseScraper):
                 for save_attempt in range(max_save_retries):
                     try:
                         job_details_cache.cache_job_details(job_url, error_details, is_valid=False, error_message=f"HTML parsing error: {parse_error}")
-                        print(f"   💾 Cached parsing error for: {job_url}")
+                        self.logger.info(f"   💾 Cached parsing error for: {job_url}")
                         break
                     except Exception as save_error:
-                        print(f"   ⚠️ Cache save attempt {save_attempt + 1}/{max_save_retries} failed: {save_error}")
+                        self.logger.warning(f"   ⚠️ Cache save attempt {save_attempt + 1}/{max_save_retries} failed: {save_error}")
                         if save_attempt < max_save_retries - 1:
                             time.sleep(save_retry_delay)
                 
@@ -576,16 +577,16 @@ class LinkedInScraper(BaseScraper):
                         desc_text = desc_elem.get_text('\n', strip=True)
                         if desc_text and len(desc_text) > 30:  # Reduced from 50 to 30
                             description = desc_text
-                            print(f"   ✅ Found description using selector {i+1}: {selector} (length: {len(description)} chars)")
+                            self.logger.info(f"   ✅ Found description using selector {i+1}: {selector} (length: {len(description)} chars)")
                             break
                 except Exception as e:
                     if self.debug:
-                        print(f"   ⚠️ Selector {i+1} failed: {selector} - {e}")
+                        self.logger.warning(f"   ⚠️ Selector {i+1} failed: {selector} - {e}")
                     continue
             
             # Enhanced fallback: try to extract any meaningful text if specific selectors fail
             if not description or len(description.strip()) < 50:
-                print(f"   🔍 Using enhanced fallback extraction for: {job_url}")
+                self.logger.info(f"   🔍 Using enhanced fallback extraction for: {job_url}")
                 
                 # Look for any text that might be a job description
                 all_text_elements = soup.find_all(['p', 'div', 'section', 'article', 'span'])
@@ -640,23 +641,23 @@ class LinkedInScraper(BaseScraper):
                 
                 if best_candidate and best_score >= 3:
                     description = best_candidate
-                    print(f"   ✅ Found description with score {best_score} (length: {len(description)} chars)")
+                    self.logger.info(f"   ✅ Found description with score {best_score} (length: {len(description)} chars)")
                 else:
-                    print(f"   ⚠️ No suitable description found (best score: {best_score})")
+                    self.logger.warning(f"   ⚠️ No suitable description found (best score: {best_score})")
             
             # Content validation for LinkedIn
             if not title or title == "Unknown Title":
-                print(f"   ⚠️ Warning: Could not extract title for: {job_url}")
+                self.logger.warning(f"   ⚠️ Warning: Could not extract title for: {job_url}")
             
             if not company or company == "Unknown Company":
-                print(f"   ⚠️ Warning: Could not extract company for: {job_url}")
+                self.logger.warning(f"   ⚠️ Warning: Could not extract company for: {job_url}")
             
             if not description or len(description.strip()) < 30:
-                print(f"   ⚠️ Warning: Description too short for: {job_url} ({len(description)} chars)")
+                self.logger.warning(f"   ⚠️ Warning: Description too short for: {job_url} ({len(description)} chars)")
                 
                 # Try one more aggressive approach - look for any text that contains German job indicators
                 if not description or len(description.strip()) < 30:
-                    print(f"   🔍 Trying aggressive text extraction for: {job_url}")
+                    self.logger.info(f"   🔍 Trying aggressive text extraction for: {job_url}")
                     
                     # Look for any text containing German job indicators
                     all_text = soup.get_text('\n', strip=True)
@@ -693,7 +694,7 @@ class LinkedInScraper(BaseScraper):
                         
                         if unique_lines:
                             description = '\n'.join(unique_lines)
-                            print(f"   ✅ Found German content using aggressive extraction (length: {len(description)} chars)")
+                            self.logger.info(f"   ✅ Found German content using aggressive extraction (length: {len(description)} chars)")
             
             details = {
                 "title": title or "Unknown Title",
@@ -718,10 +719,10 @@ class LinkedInScraper(BaseScraper):
             for save_attempt in range(max_save_retries):
                 try:
                     job_details_cache.cache_job_details(job_url, details)
-                    print(f"   💾 Successfully cached job details for: {job_url}")
+                    self.logger.info(f"   💾 Successfully cached job details for: {job_url}")
                     break
                 except Exception as save_error:
-                    print(f"   ⚠️ Cache save attempt {save_attempt + 1}/{max_save_retries} failed: {save_error}")
+                    self.logger.warning(f"   ⚠️ Cache save attempt {save_attempt + 1}/{max_save_retries} failed: {save_error}")
                     if save_attempt < max_save_retries - 1:
                         time.sleep(save_retry_delay)
             
@@ -729,7 +730,7 @@ class LinkedInScraper(BaseScraper):
             
         except Exception as e:
             if self.debug:
-                print(f"   ⚠️ Error fetching LinkedIn job details for {job_url}: {e}")
+                self.logger.warning(f"   ⚠️ Error fetching LinkedIn job details for {job_url}: {e}")
             error_details = {
                 "title": "Error - Job Details Fetch",
                 "company": "Unknown",
@@ -753,10 +754,10 @@ class LinkedInScraper(BaseScraper):
             for save_attempt in range(max_save_retries):
                 try:
                     job_details_cache.cache_job_details(job_url, error_details, is_valid=False, error_message=f"Error: {str(e)}")
-                    print(f"   💾 Cached error details for: {job_url}")
+                    self.logger.info(f"   💾 Cached error details for: {job_url}")
                     break
                 except Exception as save_error:
-                    print(f"   ⚠️ Cache save attempt {save_attempt + 1}/{max_save_retries} failed: {save_error}")
+                    self.logger.warning(f"   ⚠️ Cache save attempt {save_attempt + 1}/{max_save_retries} failed: {save_error}")
                     if save_attempt < max_save_retries - 1:
                         time.sleep(save_retry_delay)
             
