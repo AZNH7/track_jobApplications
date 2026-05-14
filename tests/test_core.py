@@ -56,7 +56,8 @@ class TestContentHash(unittest.TestCase):
     def setUpClass(cls):
         # Import only what we need; skip DB connection entirely
         from database.job_listings_table import JobListingsTable
-        cls.fn = JobListingsTable._compute_content_hash
+        # Wrap in staticmethod so self.fn(a, b) doesn't bind self as first arg
+        cls.fn = staticmethod(JobListingsTable._compute_content_hash)
 
     def test_same_title_company_produces_same_hash(self):
         h1 = self.fn("Python Developer", "Acme Corp")
@@ -112,6 +113,27 @@ class TestContentHash(unittest.TestCase):
 # #11 — session state trimming
 # ===========================================================================
 
+class _FakeSessionState:
+    """Minimal st.session_state stand-in that supports both attribute and dict-style access."""
+    def __init__(self, data: dict):
+        object.__setattr__(self, '_data', data)
+
+    def get(self, key, default=None):
+        return self._data.get(key, default)
+
+    def __setattr__(self, key, value):
+        self._data[key] = value
+
+    def __getattr__(self, key):
+        try:
+            return self._data[key]
+        except KeyError:
+            raise AttributeError(key)
+
+    def __contains__(self, key):
+        return key in self._data
+
+
 class TestTrimSessionState(unittest.TestCase):
     """Tests for SessionStateManager.trim_session_state."""
 
@@ -126,14 +148,8 @@ class TestTrimSessionState(unittest.TestCase):
 
     def _run_trim(self, state: dict):
         """Patch st.session_state and call trim_session_state."""
-        mock_state = MagicMock()
-        mock_state.__contains__ = lambda self, k: k in state
-        mock_state.__getitem__ = lambda self, k: state[k]
-        mock_state.__setitem__ = lambda self, k, v: state.__setitem__(k, v)
-        mock_state.get = state.get
-
         with patch("core.session_state.st") as mock_st:
-            mock_st.session_state = state
+            mock_st.session_state = _FakeSessionState(state)
             from core.session_state import SessionStateManager
             SessionStateManager.trim_session_state()
         return state
@@ -146,7 +162,7 @@ class TestTrimSessionState(unittest.TestCase):
         entries = list(range(150))
         state = {"search_log": entries, "email_log_messages": [], "platform_test_results": {}}
         with patch("core.session_state.st") as mock_st:
-            mock_st.session_state = state
+            mock_st.session_state = _FakeSessionState(state)
             from core.session_state import SessionStateManager
             SessionStateManager.trim_session_state()
         self.assertEqual(state["search_log"], list(range(50, 150)))
@@ -170,7 +186,7 @@ class TestTrimSessionState(unittest.TestCase):
     def test_missing_keys_do_not_raise(self):
         """trim_session_state must be safe if a key hasn't been initialised yet."""
         with patch("core.session_state.st") as mock_st:
-            mock_st.session_state = {}
+            mock_st.session_state = _FakeSessionState({})
             from core.session_state import SessionStateManager
             SessionStateManager.trim_session_state()  # should not raise
 
